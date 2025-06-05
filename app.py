@@ -2,7 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-import PyPDF2
+from pypdf import PdfReader
 import io
 from pdf2image import convert_from_bytes
 from PIL import Image
@@ -69,7 +69,7 @@ if 'step' not in st.session_state:
 
 def extract_text_from_pdf(pdf_file):
     """PDF에서 텍스트 추출"""
-    pdf_reader = PyPDF2.PdfReader(pdf_file)
+    pdf_reader = PdfReader(pdf_file)
     text = ""
     page_texts = []
     

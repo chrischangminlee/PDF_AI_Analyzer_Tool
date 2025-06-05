@@ -92,11 +92,13 @@ def convert_pdf_to_images(pdf_file):
     try:
         # PDF 파일을 바이트로 읽기
         pdf_bytes = pdf_file.read()
-        # 이미지로 변환
-        images = convert_from_bytes(pdf_bytes, dpi=150)
+        # 이미지로 변환 (DPI를 낮춰서 처리 속도 향상)
+        images = convert_from_bytes(pdf_bytes, dpi=100, fmt='jpeg')
         return images
     except Exception as e:
-        st.error(f"PDF를 이미지로 변환하는 중 오류가 발생했습니다: {str(e)}")
+        st.warning(f"PDF를 이미지로 변환하는 중 오류가 발생했습니다: {str(e)}")
+        st.info("페이지 미리보기를 건너뛰고 분석을 계속합니다. AI가 PDF를 직접 분석하므로 기능에는 문제가 없습니다.")
+        # 빈 리스트를 반환하여 프로세스가 계속 진행되도록 함
         return []
 
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
@@ -219,20 +221,37 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     # 페이지 선택 체크박스
     selected_pages = []
     
-    # 관련 페이지들을 3열로 표시
-    cols = st.columns(3)
-    
-    for i, page_num in enumerate(st.session_state.relevant_pages):
-        col_idx = i % 3
-        with cols[col_idx]:
-            # 페이지 이미지 표시 (0-based index로 변환)
-            if page_num - 1 < len(st.session_state.pdf_images):
-                st.image(st.session_state.pdf_images[page_num - 1], 
-                        caption=f"페이지 {page_num}", 
-                        use_column_width=True)
-                
-                # 선택 체크박스
-                if st.checkbox(f"페이지 {page_num} 선택", key=f"page_{page_num}"):
+    # PDF 이미지가 있는지 확인
+    if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
+        # 관련 페이지들을 3열로 표시 (이미지와 함께)
+        cols = st.columns(3)
+        
+        for i, page_num in enumerate(st.session_state.relevant_pages):
+            col_idx = i % 3
+            with cols[col_idx]:
+                # 페이지 이미지 표시 (0-based index로 변환)
+                if page_num - 1 < len(st.session_state.pdf_images):
+                    st.image(st.session_state.pdf_images[page_num - 1], 
+                            caption=f"페이지 {page_num}", 
+                            use_column_width=True)
+                    
+                    # 선택 체크박스
+                    if st.checkbox(f"페이지 {page_num} 선택", key=f"page_{page_num}"):
+                        selected_pages.append(page_num)
+                else:
+                    # 이미지가 없는 경우 텍스트로만 표시
+                    st.write(f"**페이지 {page_num}**")
+                    if st.checkbox(f"페이지 {page_num} 선택", key=f"page_{page_num}"):
+                        selected_pages.append(page_num)
+    else:
+        # 이미지 변환이 실패한 경우 텍스트로만 페이지 선택 제공
+        st.info("📄 페이지 미리보기는 사용할 수 없지만, AI가 PDF를 직접 분석했으므로 정상적으로 분석할 수 있습니다.")
+        
+        cols = st.columns(4)
+        for i, page_num in enumerate(st.session_state.relevant_pages):
+            col_idx = i % 4
+            with cols[col_idx]:
+                if st.checkbox(f"페이지 {page_num}", key=f"page_{page_num}"):
                     selected_pages.append(page_num)
     
     # 선택된 페이지들 저장

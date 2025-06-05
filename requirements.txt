@@ -4,4 +4,5 @@ python-dotenv==1.0.0
 pypdf==4.0.1
 pdf2image==1.16.3
 Pillow==10.4.0
-streamlit-pdf-viewer==0.0.12 
+streamlit-pdf-viewer==0.0.12
+cryptography>=3.1 

@@ -69,16 +69,31 @@ if 'step' not in st.session_state:
 
 def extract_text_from_pdf(pdf_file):
     """PDF에서 텍스트 추출"""
-    pdf_reader = PdfReader(pdf_file)
-    text = ""
-    page_texts = []
-    
-    for page_num, page in enumerate(pdf_reader.pages):
-        page_text = page.extract_text()
-        page_texts.append(page_text)
-        text += f"[페이지 {page_num + 1}]\n{page_text}\n\n"
-    
-    return text, page_texts
+    try:
+        pdf_reader = PdfReader(pdf_file)
+        
+        # 암호화된 PDF인지 확인
+        if pdf_reader.is_encrypted:
+            st.error("암호화된 PDF 파일은 지원하지 않습니다. 암호화되지 않은 PDF 파일을 업로드해주세요.")
+            return "", []
+        
+        text = ""
+        page_texts = []
+        
+        for page_num, page in enumerate(pdf_reader.pages):
+            try:
+                page_text = page.extract_text()
+                page_texts.append(page_text)
+                text += f"[페이지 {page_num + 1}]\n{page_text}\n\n"
+            except Exception as e:
+                st.warning(f"페이지 {page_num + 1}에서 텍스트 추출 중 오류가 발생했습니다: {str(e)}")
+                page_texts.append("")
+        
+        return text, page_texts
+        
+    except Exception as e:
+        st.error(f"PDF 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
+        return "", []
 
 def convert_pdf_to_images(pdf_file):
     """PDF를 이미지로 변환"""

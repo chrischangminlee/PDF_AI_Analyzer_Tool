@@ -2,12 +2,12 @@ import streamlit as st
 import google.generativeai as genai
 from dotenv import load_dotenv
 import os
-from pypdf import PdfReader
 import io
 from pdf2image import convert_from_bytes
 from PIL import Image
 import base64
 import time
+import tempfile
 
 # 환경변수 로드
 load_dotenv()
@@ -62,38 +62,30 @@ if 'relevant_pages' not in st.session_state:
     st.session_state.relevant_pages = []
 if 'selected_pages' not in st.session_state:
     st.session_state.selected_pages = []
-if 'pdf_text' not in st.session_state:
-    st.session_state.pdf_text = ""
+if 'uploaded_file' not in st.session_state:
+    st.session_state.uploaded_file = None
 if 'step' not in st.session_state:
     st.session_state.step = 1
 
-def extract_text_from_pdf(pdf_file):
-    """PDF에서 텍스트 추출"""
+def upload_pdf_to_gemini(pdf_file):
+    """PDF 파일을 Gemini에 업로드"""
     try:
-        pdf_reader = PdfReader(pdf_file)
+        # 임시 파일로 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+            tmp_file.write(pdf_file.getvalue())
+            tmp_file_path = tmp_file.name
         
-        # 암호화된 PDF인지 확인
-        if pdf_reader.is_encrypted:
-            st.error("암호화된 PDF 파일은 지원하지 않습니다. 암호화되지 않은 PDF 파일을 업로드해주세요.")
-            return "", []
+        # Gemini에 파일 업로드
+        uploaded_file = genai.upload_file(tmp_file_path, mime_type='application/pdf')
         
-        text = ""
-        page_texts = []
+        # 임시 파일 삭제
+        os.unlink(tmp_file_path)
         
-        for page_num, page in enumerate(pdf_reader.pages):
-            try:
-                page_text = page.extract_text()
-                page_texts.append(page_text)
-                text += f"[페이지 {page_num + 1}]\n{page_text}\n\n"
-            except Exception as e:
-                st.warning(f"페이지 {page_num + 1}에서 텍스트 추출 중 오류가 발생했습니다: {str(e)}")
-                page_texts.append("")
-        
-        return text, page_texts
+        return uploaded_file
         
     except Exception as e:
-        st.error(f"PDF 파일을 읽는 중 오류가 발생했습니다: {str(e)}")
-        return "", []
+        st.error(f"PDF 파일을 Gemini에 업로드하는 중 오류가 발생했습니다: {str(e)}")
+        return None
 
 def convert_pdf_to_images(pdf_file):
     """PDF를 이미지로 변환"""
@@ -107,49 +99,54 @@ def convert_pdf_to_images(pdf_file):
         st.error(f"PDF를 이미지로 변환하는 중 오류가 발생했습니다: {str(e)}")
         return []
 
-def find_relevant_pages_with_gemini(pdf_text, user_prompt):
-    """Gemini API를 사용하여 관련 페이지 찾기"""
+def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
+    """Gemini API를 사용하여 PDF에서 관련 페이지 찾기"""
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
-        다음은 PDF 문서의 전체 내용입니다:
-        
-        {pdf_text}
+        업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지 번호들을 찾아주세요.
         
         사용자의 질문: {user_prompt}
         
-        이 질문과 관련이 있을 수 있는 페이지 번호들을 모두 찾아서 쉼표로 구분하여 나열해주세요.
-        답변은 페이지 번호만 제공하고, 다른 설명은 하지 마세요.
-        예시: 3, 111, 253, 299
+        지시사항:
+        1. PDF 문서 전체를 꼼꼼히 분석해주세요
+        2. 질문과 직접적으로 관련된 페이지뿐만 아니라 간접적으로 관련될 수 있는 페이지도 포함해주세요
+        3. 답변은 페이지 번호만 쉼표로 구분하여 제공하고, 다른 설명은 하지 마세요
+        4. 페이지 번호는 1부터 시작합니다
+        
+        예시 답변 형식: 3, 111, 253, 299
         """
         
-        response = model.generate_content(prompt)
+        response = model.generate_content([uploaded_file, prompt])
         return response.text.strip()
     
     except Exception as e:
         st.error(f"Gemini API 호출 중 오류가 발생했습니다: {str(e)}")
         return ""
 
-def generate_final_answer(selected_page_texts, user_prompt):
-    """선택된 페이지들로 최종 답변 생성"""
+def generate_final_answer(uploaded_file, selected_pages, user_prompt):
+    """선택된 페이지들을 기반으로 최종 답변 생성"""
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         
-        combined_text = "\n\n".join([f"[페이지 {i+1}]\n{text}" for i, text in enumerate(selected_page_texts)])
+        pages_text = ", ".join(map(str, selected_pages))
         
         prompt = f"""
-        다음은 선택된 PDF 페이지들의 내용입니다:
-        
-        {combined_text}
+        업로드된 PDF 문서에서 특정 페이지들({pages_text})을 중심으로 사용자의 질문에 답변해주세요.
         
         사용자의 질문: {user_prompt}
         
-        위 내용을 바탕으로 사용자의 질문에 대해 상세하고 정확한 답변을 제공해주세요.
-        가능한 한 구체적인 정보와 페이지 참조를 포함하여 답변해주세요.
+        분석 대상 페이지: {pages_text}
+        
+        지시사항:
+        1. 지정된 페이지들을 중심으로 분석하되, 필요하다면 다른 페이지의 관련 정보도 참조하세요
+        2. 상세하고 정확한 답변을 제공해주세요
+        3. 가능한 한 구체적인 정보와 페이지 참조를 포함하여 답변해주세요
+        4. 답변 구조를 명확하게 정리해주세요
         """
         
-        response = model.generate_content(prompt)
+        response = model.generate_content([uploaded_file, prompt])
         return response.text
     
     except Exception as e:
@@ -173,24 +170,29 @@ if pdf_file and user_prompt and st.button("PDF 분석 시작", type="primary"):
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # PDF 텍스트 추출
-        status_text.text("PDF에서 텍스트를 추출하는 중...")
+        # PDF를 Gemini에 업로드
+        status_text.text("PDF를 Gemini AI에 업로드하는 중...")
         progress_bar.progress(25)
-        pdf_text, page_texts = extract_text_from_pdf(pdf_file)
-        st.session_state.pdf_text = pdf_text
-        st.session_state.page_texts = page_texts
+        uploaded_file = upload_pdf_to_gemini(pdf_file)
+        if not uploaded_file:
+            st.error("PDF 업로드에 실패했습니다. 다시 시도해주세요.")
+            progress_bar.empty()
+            status_text.empty()
+            st.stop()
         
-        # PDF 이미지 변환
-        status_text.text("PDF를 이미지로 변환하는 중...")
+        st.session_state.uploaded_file = uploaded_file
+        
+        # PDF 이미지 변환 (미리보기용)
+        status_text.text("PDF 미리보기를 위해 이미지로 변환하는 중...")
         progress_bar.progress(50)
         pdf_file.seek(0)  # 파일 포인터 리셋
         pdf_images = convert_pdf_to_images(pdf_file)
         st.session_state.pdf_images = pdf_images
         
-        # Gemini API로 관련 페이지 찾기
-        status_text.text("AI가 관련 페이지를 분석하는 중...")
+        # Gemini AI가 직접 PDF를 분석하여 관련 페이지 찾기
+        status_text.text("Gemini AI가 PDF를 분석하여 관련 페이지를 찾는 중...")
         progress_bar.progress(75)
-        relevant_pages_text = find_relevant_pages_with_gemini(pdf_text, user_prompt)
+        relevant_pages_text = find_relevant_pages_with_gemini(uploaded_file, user_prompt)
         
         # 페이지 번호 파싱
         try:
@@ -246,15 +248,9 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
 if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.header("3단계: 최종 분석 결과")
     
-    with st.spinner("선택된 페이지들을 분석하여 답변을 생성하는 중..."):
-        # 선택된 페이지들의 텍스트 추출
-        selected_page_texts = []
-        for page_num in st.session_state.selected_pages:
-            if page_num - 1 < len(st.session_state.page_texts):
-                selected_page_texts.append(st.session_state.page_texts[page_num - 1])
-        
-        # 최종 답변 생성
-        final_answer = generate_final_answer(selected_page_texts, user_prompt)
+    with st.spinner("Gemini AI가 선택된 페이지들을 분석하여 답변을 생성하는 중..."):
+        # Gemini AI가 선택된 페이지들을 직접 분석하여 최종 답변 생성
+        final_answer = generate_final_answer(st.session_state.uploaded_file, st.session_state.selected_pages, user_prompt)
     
     if final_answer:
         st.subheader("📋 분석 결과")
@@ -266,7 +262,7 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
         # 다시 분석하기 버튼
         if st.button("새로운 분석 시작"):
             # 세션 상태 초기화
-            for key in ['pdf_pages', 'relevant_pages', 'selected_pages', 'pdf_text', 'step', 'pdf_images', 'page_texts']:
+            for key in ['pdf_pages', 'relevant_pages', 'selected_pages', 'uploaded_file', 'step', 'pdf_images']:
                 if key in st.session_state:
                     del st.session_state[key]
             st.rerun()

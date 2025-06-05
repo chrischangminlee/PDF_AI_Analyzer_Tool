@@ -36,7 +36,7 @@ st.sidebar.title("소개")
 st.sidebar.markdown("""
 본 서비스는 AI를 활용하여 다양한 종류의 PDF를 세부분석 할 수 있게 도와주는 AI 도구 입니다.
 유용한 기능들이 지속적으로 개발 중이며, 보다 향상된 서비스를 제공하기 위해 개선을 이어가고 있습니다.
-* Gemini 2.0 flash model을 사용하여 PDF를 분석하고 있어 답변 생성 속도가 느립니다.
+* Gemini 1.5 flash model을 사용하여 PDF를 분석하고 있어 답변 생성 속도가 느립니다.
 """)
 st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">(주의) 본 AI가 제공하는 답변은 참고용이며, 정확성을 보장할 수 없습니다. 보안을 위해 회사 기밀, 개인정보등은 제공하지 않기를 권장드리며, 반드시 실제 업무에 적용하기 전에 검토하시길 바랍니다.</p>', unsafe_allow_html=True)
 
@@ -102,7 +102,7 @@ def convert_pdf_to_images(pdf_file):
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
     """Gemini API를 사용하여 PDF에서 관련 페이지 찾기"""
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
         업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지 번호들을 찾아주세요.
@@ -128,7 +128,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
 def generate_final_answer(uploaded_file, selected_pages, user_prompt):
     """선택된 페이지들을 기반으로 최종 답변 생성"""
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         pages_text = ", ".join(map(str, selected_pages))
         

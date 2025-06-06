@@ -222,45 +222,38 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.header("2단계: AI가 찾은 관련 페이지들")
     st.write(f"**AI가 찾은 관련 페이지:** {', '.join(map(str, st.session_state.relevant_pages))}")
     st.write("아래에서 실제로 분석에 사용할 페이지들을 선택해주세요:")
-    
-    st.session_state.selected_pages = selected_pages
-    if selected_pages:
-        st.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
-        if st.button("선택된 페이지로 최종 분석 실행", type="primary"):
-            st.session_state.step = 3
 
-    # 페이지 선택 체크박스
+    # ─────────────────────────────────────────────
+    # 1) 버튼·알림 자리를 먼저 확보
+    top_msg   = st.empty()      # success / info 메시지 자리
+    top_btn   = st.empty()      # 실행 버튼 자리
+    # ─────────────────────────────────────────────
+
+    # 2) 체크박스 돌면서 선택 리스트 만들기
     selected_pages = []
-    
-    # PDF 이미지가 있는지 확인
+
     if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
-        cols = st.columns(3)                         # 3열 그리드
+        cols = st.columns(3)
         for i, page_num in enumerate(st.session_state.relevant_pages):
-            col_idx = i % 3
-            with cols[col_idx]:
-                # 🟡 한 박스 = 한 페이지
-                with st.container(border=True):      # Streamlit 1.34+  : 외곽선·둥근모서리·padding 자동
-                    top_l, top_r = st.columns([1, 5], gap="small")
-                    with top_l:
+            with cols[i % 3]:
+                with st.container(border=True):
+                    c1, c2 = st.columns([1, 5], gap="small")
+                    with c1:
                         checked = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
                         if checked:
                             selected_pages.append(page_num)
-                    with top_r:
-                        st.markdown(f"**📄 페이지 {page_num}**", unsafe_allow_html=True)
-
-                    # PDF 썸네일
+                    with c2:
+                        st.markdown(f"**📄 페이지 {page_num}**")
                     img_idx = page_num - 1
                     if img_idx < len(st.session_state.pdf_images):
                         st.image(st.session_state.pdf_images[img_idx], use_column_width=True)
                     else:
                         st.info("이미지를 불러올 수 없습니다.")
     else:
-        st.info("📄 페이지 미리보기를 사용할 수 없습니다. (PDF 분석은 정상 작동)")
-
+        st.info("📄 페이지 미리보기를 사용할 수 없습니다.")
         cols = st.columns(4)
         for i, page_num in enumerate(st.session_state.relevant_pages):
-            col_idx = i % 4
-            with cols[col_idx]:
+            with cols[i % 4]:
                 with st.container(border=True):
                     cb, txt = st.columns([1, 3], gap="small")
                     with cb:
@@ -269,6 +262,17 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                             selected_pages.append(page_num)
                     with txt:
                         st.markdown(f"**📄 페이지 {page_num}**")
+
+    # 3) 선택 결과를 세션에 저장
+    st.session_state.selected_pages = selected_pages
+
+    # 4) 위에서 확보한 placeholder에 실제 콘텐츠 삽입
+    if selected_pages:
+        top_msg.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
+        if top_btn.button("선택된 페이지로 최종 분석 실행", type="primary"):
+            st.session_state.step = 3
+    else:
+        top_msg.info("✅ 먼저 페이지를 선택해주세요.")
 
 
 

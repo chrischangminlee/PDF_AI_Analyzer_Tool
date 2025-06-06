@@ -223,6 +223,12 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.write(f"**AI가 찾은 관련 페이지:** {', '.join(map(str, st.session_state.relevant_pages))}")
     st.write("아래에서 실제로 분석에 사용할 페이지들을 선택해주세요:")
     
+    st.session_state.selected_pages = selected_pages
+    if selected_pages:
+        st.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
+        if st.button("선택된 페이지로 최종 분석 실행", type="primary"):
+            st.session_state.step = 3
+
     # 페이지 선택 체크박스
     selected_pages = []
     
@@ -264,11 +270,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                     with txt:
                         st.markdown(f"**📄 페이지 {page_num}**")
 
-    st.session_state.selected_pages = selected_pages
-    if selected_pages:
-        st.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
-        if st.button("선택된 페이지로 최종 분석 실행", type="primary"):
-            st.session_state.step = 3
+
 
 # 3단계: 최종 답변 생성
 if st.session_state.step >= 3 and st.session_state.selected_pages:

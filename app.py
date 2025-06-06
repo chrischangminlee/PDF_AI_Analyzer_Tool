@@ -43,7 +43,7 @@ st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">(주의) 본 AI가
 st.sidebar.markdown("### 타 Link")
 st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrislee9407/)")
 st.sidebar.markdown("[K-계리 AI 플랫폼](https://chrischangminlee.github.io/K_Actuary_AI_Agent_Platform/)")
-st.sidebar.markdown("[K Actuary AI PDF Analyzer](https://kactuarypdf.streamlit.app/)")
+st.sidebar.markdown("[K Actuary AI PDF  (Old Version)](https://kactuarypdf.streamlit.app/)")
 
 # 메인 제목
 st.title("이창민의 PDF AI 세부 분석 Tool")

@@ -165,8 +165,8 @@ with st.form("pdf_analysis_form"):
         pdf_file = st.file_uploader("분석 희망하는 PDF 파일을 업로드하세요", type=["pdf"])
     
     with col2:
-        user_prompt = st.text_input("프롬프트를 입력하세요 (입력 후 엔터 또는 분석 버튼 클릭)", 
-                                  placeholder="예: 보험약관에서 담보별 지급금액을 알려줘")
+        user_prompt = st.text_input("PDF에서 분석하고자하는 내용을 포함한 프롬프트를 입력하세요 (입력 후 엔터 또는 분석 버튼 클릭)", 
+                                  placeholder="예: 요구자본의 정의를 알려줘")
     
     # 폼 제출 버튼 (엔터키로도 작동)
     submitted = st.form_submit_button("🚀 PDF 분석 시작", type="primary", use_container_width=True)
@@ -234,28 +234,31 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
         for i, page_num in enumerate(st.session_state.relevant_pages):
             col_idx = i % 3
             with cols[col_idx]:
-                # 페이지 컨테이너 (박스 형태)
+                # 페이지 컨테이너 박스
                 with st.container():
-                    st.markdown(f"""
-                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 10px; margin: 5px 0;">
-                    </div>
+                    # 하나의 통합된 박스 시작
+                    st.markdown("""
+                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 10px 0; background-color: #fafafa;">
                     """, unsafe_allow_html=True)
                     
-                    # 페이지 번호와 체크박스를 같은 행에 배치
-                    page_col1, page_col2 = st.columns([1, 4])
-                    with page_col1:
+                    # 상단 행: 체크박스(좌측)와 페이지 번호(우측)
+                    header_col1, header_col2 = st.columns([1, 4])
+                    with header_col1:
                         is_selected = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
                         if is_selected:
                             selected_pages.append(page_num)
-                    with page_col2:
+                    with header_col2:
                         st.markdown(f"**📄 페이지 {page_num}**")
                     
-                    # 페이지 이미지 표시 (0-based index로 변환)
+                    # 페이지 이미지 표시
                     if page_num - 1 < len(st.session_state.pdf_images):
                         st.image(st.session_state.pdf_images[page_num - 1], 
                                 use_column_width=True)
                     else:
                         st.info("이미지를 불러올 수 없습니다")
+                    
+                    # 박스 종료
+                    st.markdown("</div>", unsafe_allow_html=True)
     else:
         # 이미지 변환이 실패한 경우 텍스트로만 페이지 선택 제공
         st.info("📄 페이지 미리보기는 사용할 수 없지만, AI가 PDF를 직접 분석했으므로 정상적으로 분석할 수 있습니다.")
@@ -266,19 +269,22 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
             with cols[col_idx]:
                 # 텍스트 기반 페이지 선택 박스
                 with st.container():
-                    st.markdown(f"""
-                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 5px 0; text-align: center;">
-                    </div>
+                    # 통합된 박스 시작
+                    st.markdown("""
+                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 10px 0; background-color: #fafafa; text-align: center;">
                     """, unsafe_allow_html=True)
                     
-                    # 체크박스와 페이지 번호
+                    # 체크박스(좌측)와 페이지 번호(우측)
                     checkbox_col, text_col = st.columns([1, 3])
                     with checkbox_col:
                         is_selected = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
                         if is_selected:
                             selected_pages.append(page_num)
                     with text_col:
-                        st.markdown(f"**📄 {page_num}**")
+                        st.markdown(f"**📄 페이지 {page_num}**")
+                    
+                    # 박스 종료
+                    st.markdown("</div>", unsafe_allow_html=True)
     
     # 선택된 페이지들 저장
     st.session_state.selected_pages = selected_pages

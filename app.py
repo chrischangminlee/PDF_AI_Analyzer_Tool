@@ -228,70 +228,45 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     
     # PDF 이미지가 있는지 확인
     if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
-        # 관련 페이지들을 3열로 표시 (이미지와 함께)
-        cols = st.columns(3)
-        
+        cols = st.columns(3)                         # 3열 그리드
         for i, page_num in enumerate(st.session_state.relevant_pages):
             col_idx = i % 3
             with cols[col_idx]:
-                # 페이지 컨테이너 박스
-                with st.container():
-                    # 하나의 통합된 박스 시작
-                    st.markdown("""
-                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 10px 0; background-color: #fafafa;">
-                    """, unsafe_allow_html=True)
-                    
-                    # 상단 행: 체크박스(좌측)와 페이지 번호(우측)
-                    header_col1, header_col2 = st.columns([1, 4])
-                    with header_col1:
-                        is_selected = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
-                        if is_selected:
+                # 🟡 한 박스 = 한 페이지
+                with st.container(border=True):      # Streamlit 1.34+  : 외곽선·둥근모서리·padding 자동
+                    top_l, top_r = st.columns([1, 5], gap="small")
+                    with top_l:
+                        checked = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
+                        if checked:
                             selected_pages.append(page_num)
-                    with header_col2:
-                        st.markdown(f"**📄 페이지 {page_num}**")
-                    
-                    # 페이지 이미지 표시
-                    if page_num - 1 < len(st.session_state.pdf_images):
-                        st.image(st.session_state.pdf_images[page_num - 1], 
-                                use_column_width=True)
+                    with top_r:
+                        st.markdown(f"**📄 페이지 {page_num}**", unsafe_allow_html=True)
+
+                    # PDF 썸네일
+                    img_idx = page_num - 1
+                    if img_idx < len(st.session_state.pdf_images):
+                        st.image(st.session_state.pdf_images[img_idx], use_column_width=True)
                     else:
-                        st.info("이미지를 불러올 수 없습니다")
-                    
-                    # 박스 종료
-                    st.markdown("</div>", unsafe_allow_html=True)
+                        st.info("이미지를 불러올 수 없습니다.")
     else:
-        # 이미지 변환이 실패한 경우 텍스트로만 페이지 선택 제공
-        st.info("📄 페이지 미리보기는 사용할 수 없지만, AI가 PDF를 직접 분석했으므로 정상적으로 분석할 수 있습니다.")
-        
+        st.info("📄 페이지 미리보기를 사용할 수 없습니다. (PDF 분석은 정상 작동)")
+
         cols = st.columns(4)
         for i, page_num in enumerate(st.session_state.relevant_pages):
             col_idx = i % 4
             with cols[col_idx]:
-                # 텍스트 기반 페이지 선택 박스
-                with st.container():
-                    # 통합된 박스 시작
-                    st.markdown("""
-                    <div style="border: 2px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 10px 0; background-color: #fafafa; text-align: center;">
-                    """, unsafe_allow_html=True)
-                    
-                    # 체크박스(좌측)와 페이지 번호(우측)
-                    checkbox_col, text_col = st.columns([1, 3])
-                    with checkbox_col:
-                        is_selected = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
-                        if is_selected:
+                with st.container(border=True):
+                    cb, txt = st.columns([1, 3], gap="small")
+                    with cb:
+                        checked = st.checkbox("", key=f"page_{page_num}", label_visibility="collapsed")
+                        if checked:
                             selected_pages.append(page_num)
-                    with text_col:
+                    with txt:
                         st.markdown(f"**📄 페이지 {page_num}**")
-                    
-                    # 박스 종료
-                    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # 선택된 페이지들 저장
+
     st.session_state.selected_pages = selected_pages
-    
     if selected_pages:
         st.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
-        
         if st.button("선택된 페이지로 최종 분석 실행", type="primary"):
             st.session_state.step = 3
 

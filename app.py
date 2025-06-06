@@ -273,6 +273,15 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
             st.session_state.step = 3
     else:
         top_msg.info("✅ 먼저 페이지를 선택해주세요.")
+    
+        st.markdown("---")
+    if selected_pages:
+        st.success(f"선택된 페이지: {', '.join(map(str, selected_pages))}")
+        if st.button("선택된 페이지로 최종 분석 실행", type="primary", key="run_button_bottom"):
+            st.session_state.step = 3
+    else:
+        st.info("✅ 페이지를 하나 이상 선택해주세요.")
+
 
 
 

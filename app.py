@@ -78,11 +78,17 @@ def convert_pdf_to_images(pdf_bytes):
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
     try:
         prompt = f"""
-        업로드된 PDF 문서를 분석하여 다음 질문과 관련된 페이지 번호를 찾아주세요.
-
-        사용자 질문: {user_prompt}
-
-        답은 페이지 번호만 쉼표로 나열 (예: 2, 5, 9)
+        업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지 번호들을 찾아주세요.
+        
+        사용자의 질문: {user_prompt}
+        
+        지시사항:
+        1. PDF 문서 전체를 꼼꼼히 분석해주세요
+        2. 질문과 직접적으로 관련된 페이지뿐만 아니라 간접적으로 관련될 수 있는 페이지도 포함해주세요
+        3. 답변은 페이지 번호만 쉼표로 구분하여 제공하고, 다른 설명은 하지 마세요
+        4. 페이지 번호는 1부터 시작합니다
+        
+        예시 답변 형식: 3, 111, 253, 299
         """
         model = genai.GenerativeModel('gemini-1.5-flash')
         resp = model.generate_content([uploaded_file, prompt])
@@ -147,7 +153,7 @@ if submitted and pdf_file and user_prompt:
         pdf_bytes = pdf_file.read()
         st.session_state.original_pdf_bytes = pdf_bytes   # ★ 변경
         pdf_file.seek(0)                                  # 포인터 리셋
-
+        
         # ② Gemini에 원본 PDF 업로드
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(pdf_bytes)

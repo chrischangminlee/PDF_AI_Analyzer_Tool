@@ -53,6 +53,7 @@ for k, v in {
     'relevant_pages': [],
     'page_info': {},              # ★ 추가: 페이지별 키워드/관련도 정보
     'selected_pages': [],
+    'uploaded_file': None,
     'original_pdf_bytes': None,   # ★ 변경: 원본 바이트 저장
     'pdf_images': [],
     'step': 1,
@@ -100,87 +101,38 @@ def parse_page_info(gemini_response):
     
     return pages, page_info
 
-def find_relevant_pages_gemini_batch(pdf_bytes, user_prompt):
-    """
-    단일 API 호출로 PDF의 모든 페이지를 분석하여 관련 페이지를 찾습니다.
-    """
+def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
     try:
-        # 1. 원본 PDF 바이트를 임시 파일에 저장 후 Gemini에 한 번만 업로드
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_bytes)
-            tmp_path = tmp.name
-        
-        st.info("📄 PDF 전체를 Gemini에 업로드하는 중...")
-        uploaded_file = upload_pdf_to_gemini(tmp_path)
-        os.unlink(tmp_path) # 업로드 후 임시 파일 즉시 삭제
-
-        # 2. 모든 페이지를 한 번에 분석하도록 요청하는 프롬프트
-        st.info("📊 AI가 전체 페이지를 분석 중입니다. 잠시만 기다려주세요...")
-        
         prompt = f"""
-        당신은 문서를 정밀하게 분석하는 AI 전문가입니다.
-        주어진 PDF 파일 전체를 페이지별로 분석하여 아래 사용자 질문과 각 페이지의 관련성을 평가해주세요.
-
-        ## 사용자 질문:
-        {user_prompt}
-
-        ## 분석 지시사항:
-        1. PDF의 **모든 페이지**를 처음부터 끝까지 순서대로 검토하세요.
-        2. 각 페이지를 분석할 때는 다른 페이지의 내용은 고려하지 말고, 해당 페이지의 정보에만 집중해주세요.
-        3. 각 페이지별로 사용자 질문과의 관련도를 '상', '중', '하'로 평가해주세요.
-        4. 각 페이지의 핵심 내용을 나타내는 키워드를 3개 추출해주세요.
-        5. 아래 '응답 형식'을 반드시 정확하게 지켜서, 모든 페이지에 대한 결과를 한 줄씩 출력해주세요.
-
-        ## 응답 형식 (페이지 번호 | 키워드1,키워드2,키워드3 | 관련도):
-        1|요약,소개,목차|하
-        2|요구자본,리스크,정의|상
-        3|시장위험,신용위험,상관계수|중
-        ...
-        (이하 모든 페이지에 대해 반복)
+        업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지들을 찾아주세요.
+        
+        사용자의 질문: {user_prompt}
+        
+        지시사항:
+        1. PDF 문서 전체를 꼼꼼히 분석해주세요
+        2. 질문의 핵심 키워드들이 포함된 페이지만을 포함해주세요
+        3. 페이지 번호는 1부터 시작합니다
+        4. 각 페이지에 대해 전 페이지와의 문맥은 절대 고려하지않고, 다음 정보를 제공해주세요:
+           - 3번에 따른 페이지 번호
+           - 해당 페이지의 핵심 키워드 3개 (콤마로 구분)
+           - 질문과의 관련도 (상/중/하 중 하나)
+        
+        5. 관련도가 높은 순서대로 최대 10개 페이지까지 추천해주세요
+        
+        응답 형식 (각 줄마다 하나의 페이지 정보, 파이프(|)로 구분):
+        페이지번호|키워드1,키워드2,키워드3|관련도
+        
+        예시:
+        13|요구자본,리스크,자본충족률|상
+        25|보험료,계리,위험률|중
+        45|규제,감독,기준|하
         """
-
         model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content([uploaded_file, prompt])
-        
-        # 3. Gemini 응답 파싱 (기존 함수 재활용)
-        # 이 함수는 "페이지번호|키워드|관련도" 형식의 텍스트를 파싱하는 역할을 합니다.
-        all_pages, page_info_dict = parse_page_info(response.text)
-
-        if not all_pages:
-            st.warning("관련 페이지 정보를 추출하지 못했습니다. AI 응답 형식을 확인해보세요.")
-            return []
-
-        # 4. 결과 필터링 및 정렬 (기존 로직과 동일)
-        results = [
-            {'page_num': p, **page_info_dict[p]} for p in all_pages if p in page_info_dict
-        ]
-        
-        relevance_order = {'상': 3, '중': 2, '하': 1}
-        
-        # 관련도가 '하'가 아닌 것만 선택
-        filtered_results = [r for r in results if r.get('relevance') != '하']
-        
-        # 만약 모든 페이지의 관련도가 '하'라면, 그냥 페이지 순서대로 상위 10개 표시
-        if not filtered_results:
-            st.info("모든 페이지의 관련도가 '하'로 평가되어, 문서의 첫 10페이지를 추천합니다.")
-            filtered_results = sorted(results, key=lambda x: x['page_num'])[:10]
-
-        # 관련도 높은 순 -> 페이지 번호 높은 순 (내림차순 정렬)
-        sorted_results = sorted(filtered_results,
-                                key=lambda x: (relevance_order.get(x.get('relevance'), 0), x['page_num']),
-                                reverse=True)
-        
-        final_results = sorted_results[:10] # 최대 10개 까지만 반환
-        
-        st.success(f"✅ {len(final_results)}개 관련 페이지 분석 완료!")
-        return final_results
-
+        resp = model.generate_content([uploaded_file, prompt])
+        return resp.text.strip()
     except Exception as e:
-        st.error(f"페이지 일괄 분석 중 오류 발생: {e}")
-        # 오류 발생 시 생성되었을 수 있는 임시 파일 정리
-        if 'tmp_path' in locals() and os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        return []
+        st.error(f"Gemini 호출 오류: {e}")
+        return ""
 
 # ★ 변경: 선택 페이지만 새 PDF로 작성 후 Gemini 호출
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
@@ -246,33 +198,46 @@ with st.form("upload_form"):
     submitted = st.form_submit_button("PDF 분석 시작", type="primary")
 
 if submitted and pdf_file and user_prompt:
-    with st.spinner("PDF 분석 준비 중..."):
+    with st.spinner("PDF 업로드 및 AI 분석 중..."):
         # ① 원본 바이트 저장
         pdf_bytes = pdf_file.read()
         st.session_state.original_pdf_bytes = pdf_bytes   # ★ 변경
         pdf_file.seek(0)                                  # 포인터 리셋
         
-        # ② 썸네일용 이미지 변환
+        # ② Gemini에 원본 PDF 업로드
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
+        uploaded_file = upload_pdf_to_gemini(tmp_path)
+        os.unlink(tmp_path)
+        st.session_state.uploaded_file = uploaded_file
+
+        # ③ 썸네일용 이미지 변환
         st.session_state.pdf_images = convert_pdf_to_images(pdf_bytes)
 
-        # ④ 관련 페이지 추출 (개선된 방식: 단일 호출 일괄 분석)
-        analysis_results = find_relevant_pages_gemini_batch(pdf_bytes, user_prompt)
-        
-        if analysis_results:
-            # 결과를 세션 상태에 저장
-            st.session_state.relevant_pages = [r['page_num'] for r in analysis_results]
-            st.session_state.page_info = {
-                r['page_num']: {
-                    'keywords': r['keywords'],
-                    'relevance': r['relevance']
-                } for r in analysis_results
-            }
-        else:
-            st.warning("관련 페이지를 찾지 못했습니다.")
-            st.session_state.relevant_pages = []
-            st.session_state.page_info = {}
+        # ④ 관련 페이지 추출
+        pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt)
+        try:
+            # 구조화된 응답 파싱
+            pages, page_info = parse_page_info(pages_response)
+            # 이미지가 있는 유효한 페이지만 필터링
+            total_pages = len(st.session_state.pdf_images) if st.session_state.pdf_images else 1000  # 이미지가 없으면 넉넉하게
+            valid_pages = [p for p in pages if 1 <= p <= total_pages]
+            st.session_state.relevant_pages = valid_pages
+            st.session_state.page_info = page_info
+        except Exception as e:
+            st.error(f"페이지 정보 파싱 오류: {e}")
+            # 폴백: 기존 방식으로 시도
+            try:
+                nums = [int(x.strip()) for x in pages_response.split(',') if x.strip().isdigit()]
+                st.session_state.relevant_pages = [p for p in nums if 1 <= p <= len(st.session_state.pdf_images)]
+                st.session_state.page_info = {}
+            except:
+                st.session_state.relevant_pages = []
+                st.session_state.page_info = {}
 
         st.session_state.step = 2
+        st.success("AI가 관련 페이지를 찾았습니다!")
 
 # ───────────────────────────────────────────────
 # 5. 2단계: 페이지 선택
@@ -369,7 +334,7 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.write(answer)
 
     if st.button("새로운 분석 시작"):
-        for k in ['relevant_pages', 'page_info', 'selected_pages',
+        for k in ['relevant_pages', 'page_info', 'selected_pages', 'uploaded_file',
                   'original_pdf_bytes', 'pdf_images', 'step']:
             st.session_state.pop(k, None)
         st.rerun()

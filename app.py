@@ -32,7 +32,7 @@ st.sidebar.markdown("""
 본 서비스는 AI를 활용하여 다양한 종류의 PDF를 세부분석 할 수 있게 도와주는 AI 도구 입니다.
 * Gemini 1.5 flash model을 사용하고 있어 답변 생성 속도가 느릴 수 있습니다.
 """)
-st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">(주의) 본 AI가 제공하는 답변은 참고용입니다.</p>', unsafe_allow_html=True)
+st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">본 AI가 제공하는 답변은 참고용이며, 정확성을 보장할 수 없습니다. 보안을 위해 회사 기밀, 개인정보등은 제공하지 않기를 권장드리며, 반드시 실제 업무에 적용하기 전에 검토하시길 바랍니다.</p>', unsafe_allow_html=True)
 st.sidebar.markdown("### 타 Link")
 st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrislee9407/)")
 st.sidebar.markdown("[K-계리 AI 플랫폼](https://chrischangminlee.github.io/K_Actuary_AI_Agent_Platform/)")
@@ -111,7 +111,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         1. PDF 문서 전체를 꼼꼼히 분석해주세요
         2. 질문의 핵심 키워드들이 포함된 페이지만을 포함해주세요
         3. 페이지 번호는 1부터 시작합니다
-        4. 각 페이지에 대해 다음 정보를 제공해주세요:
+        4. 각 페이지에 대해 전 페이지와의 문맥은 절대 고려하지않고, 다음 정보를 제공해주세요:
            - 3번에 따른 페이지 번호
            - 해당 페이지의 핵심 키워드 3개 (콤마로 구분)
            - 질문과의 관련도 (상/중/하 중 하나)

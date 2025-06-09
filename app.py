@@ -107,28 +107,41 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
 
     # 2) Writer에 선택 페이지 추가 (1-based → 0-based)
     writer = PdfWriter()
-    for p in selected_pages:
+    # 선택된 페이지를 정렬하여 순서를 보장합니다.
+    sorted_pages = sorted(selected_pages)
+    for p in sorted_pages:
         if 1 <= p <= len(reader.pages):
-            writer.add_page(reader.pages[p-1])
+            writer.add_page(reader.pages[p - 1])
 
     # 3) 임시 파일로 저장 후 업로드
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         writer.write(tmp)
         tmp_path = tmp.name
     uploaded_sel = upload_pdf_to_gemini(tmp_path)
-    os.unlink(tmp_path)           # 임시 파일 삭제
+    os.unlink(tmp_path)  # 임시 파일 삭제
 
-    # 4) Gemini 프롬프트 & 호출
-    pages_txt = ", ".join(map(str, selected_pages))
+    # 4) Gemini 프롬프트 & 호출 (★ 이 부분이 핵심 수정사항입니다)
+    
+    # 페이지 매핑 정보 생성 (예: "임시 PDF 1페이지 -> 원본 PDF 13페이지, ...")
+    mapping_info = ", ".join(
+        [f"임시 PDF의 {i+1}페이지는 원본 PDF의 {p}페이지에 해당합니다" for i, p in enumerate(sorted_pages)]
+    )
+
     prompt = f"""
-    다음 PDF는 사용자가 선택한 페이지({pages_txt})만 포함합니다.
+    당신은 PDF 문서 분석 전문가입니다.
+    주어진 PDF 파일은 사용자가 원본 문서에서 특정 페이지만을 추출하여 만든 임시 파일입니다.
+    답변 시에는 반드시 '원본 PDF의 페이지 번호'를 기준으로 설명해야 합니다.
 
-    질문: {user_prompt}
+    ## 페이지 매핑 정보
+    {mapping_info}
 
-    지시사항:
-    1. PDF 범위 안에서만 답변하세요.
-    2. 가능하면 페이지 번호 근거를 명시하세요.
-    3. 항목·소제목으로 구조화해 주세요.
+    ## 사용자 질문
+    {user_prompt}
+
+    ## 지시사항
+    1. 제공된 PDF 내용만을 기반으로, 사용자 질문에 대해 상세하고 구조적으로 답변하세요.
+    2. 답변 내용의 근거를 제시할 때는, 위 '페이지 매핑 정보'를 참고하여 **반드시 원본 PDF의 페이지 번호를 언급**해주세요. (예: "원본 PDF 13페이지에 따르면...")
+    3. 다른 페이지의 내용과 연관지어 설명하지 말고, 주어진 PDF 범위 안에서만 답변을 생성하세요.
     """
     model = genai.GenerativeModel("gemini-1.5-flash")
     resp = model.generate_content([uploaded_sel, prompt])

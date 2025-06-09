@@ -50,6 +50,7 @@ st.write(
 # ───────────────────────────────────────────────
 for k, v in {
     'relevant_pages': [],
+    'page_info': {},              # ★ 추가: 페이지별 키워드/관련도 정보
     'selected_pages': [],
     'uploaded_file': None,
     'original_pdf_bytes': None,   # ★ 변경: 원본 바이트 저장
@@ -75,20 +76,54 @@ def convert_pdf_to_images(pdf_bytes):
         st.warning(f"이미지 변환 오류: {e}")
         return []
 
+def parse_page_info(gemini_response):
+    """Gemini 응답을 파싱하여 페이지 정보 추출"""
+    pages = []
+    page_info = {}
+    
+    for line in gemini_response.strip().split('\n'):
+        if '|' in line:
+            try:
+                parts = line.strip().split('|')
+                if len(parts) >= 3:
+                    page_num = int(parts[0].strip())
+                    keywords = parts[1].strip()
+                    relevance = parts[2].strip()
+                    
+                    pages.append(page_num)
+                    page_info[page_num] = {
+                        'keywords': keywords,
+                        'relevance': relevance
+                    }
+            except (ValueError, IndexError):
+                continue
+    
+    return pages, page_info
+
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
     try:
         prompt = f"""
-        업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지 번호들을 찾아주세요.
+        업로드된 PDF 문서를 분석하여 다음 질문과 관련이 있을 수 있는 페이지들을 찾아주세요.
         
         사용자의 질문: {user_prompt}
         
         지시사항:
         1. PDF 문서 전체를 꼼꼼히 분석해주세요
         2. 질문과 직접적으로 관련된 페이지뿐만 아니라 간접적으로 관련될 수 있는 페이지도 포함해주세요
-        3. 답변은 페이지 번호만 쉼표로 구분하여 제공하고, 다른 설명은 하지 마세요
+        3. 각 페이지에 대해 다음 정보를 제공해주세요:
+           - 페이지 번호
+           - 해당 페이지의 핵심 키워드 3개 (콤마로 구분)
+           - 질문과의 관련도 (상/중/하 중 하나)
         4. 페이지 번호는 1부터 시작합니다
+        5. 관련도가 높은 순서대로 최대 10개 페이지까지 추천해주세요
         
-        예시 답변 형식: 3, 111, 253, 299
+        응답 형식 (각 줄마다 하나의 페이지 정보, 파이프(|)로 구분):
+        페이지번호|키워드1,키워드2,키워드3|관련도
+        
+        예시:
+        13|요구자본,리스크,자본충족률|상
+        25|보험료,계리,위험률|중
+        45|규제,감독,기준|하
         """
         model = genai.GenerativeModel('gemini-1.5-flash')
         resp = model.generate_content([uploaded_file, prompt])
@@ -179,12 +214,25 @@ if submitted and pdf_file and user_prompt:
         st.session_state.pdf_images = convert_pdf_to_images(pdf_bytes)
 
         # ④ 관련 페이지 추출
-        pages_str = find_relevant_pages_with_gemini(uploaded_file, user_prompt)
+        pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt)
         try:
-            nums = [int(x.strip()) for x in pages_str.split(',') if x.strip().isdigit()]
-            st.session_state.relevant_pages = [p for p in nums if 1 <= p <= len(st.session_state.pdf_images)]
-        except:
-            st.session_state.relevant_pages = []
+            # 구조화된 응답 파싱
+            pages, page_info = parse_page_info(pages_response)
+            # 이미지가 있는 유효한 페이지만 필터링
+            total_pages = len(st.session_state.pdf_images) if st.session_state.pdf_images else 1000  # 이미지가 없으면 넉넉하게
+            valid_pages = [p for p in pages if 1 <= p <= total_pages]
+            st.session_state.relevant_pages = valid_pages
+            st.session_state.page_info = page_info
+        except Exception as e:
+            st.error(f"페이지 정보 파싱 오류: {e}")
+            # 폴백: 기존 방식으로 시도
+            try:
+                nums = [int(x.strip()) for x in pages_response.split(',') if x.strip().isdigit()]
+                st.session_state.relevant_pages = [p for p in nums if 1 <= p <= len(st.session_state.pdf_images)]
+                st.session_state.page_info = {}
+            except:
+                st.session_state.relevant_pages = []
+                st.session_state.page_info = {}
 
         st.session_state.step = 2
         st.success("AI가 관련 페이지를 찾았습니다!")
@@ -206,12 +254,44 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     for i, p in enumerate(st.session_state.relevant_pages):
         with cols[i % 3]:
             with st.container(border=True):
+                # 체크박스와 페이지 번호
                 cb_col, txt_col = st.columns([1, 5])
                 with cb_col:
                     if st.checkbox("", key=f"cb_{p}", label_visibility="collapsed"):
                         selected_pages.append(p)
                 with txt_col:
                     st.markdown(f"**📄 페이지 {p}**")
+                
+                # 키워드와 관련도 표시
+                if p in st.session_state.page_info:
+                    info = st.session_state.page_info[p]
+                    keywords = info.get('keywords', '')
+                    relevance = info.get('relevance', '')
+                    
+                    # 관련도에 따른 색상 설정
+                    if relevance == '상':
+                        color = "🔴"
+                        bg_color = "#ffe6e6"
+                    elif relevance == '중':
+                        color = "🟡"
+                        bg_color = "#fff9e6"
+                    else:
+                        color = "⚪"
+                        bg_color = "#f0f0f0"
+                    
+                    # 키워드와 관련도 박스
+                    st.markdown(f"""
+                    <div style="background-color: {bg_color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
+                        <div style="font-size: 0.8em; font-weight: bold;">
+                            {color} 관련도: {relevance}
+                        </div>
+                        <div style="font-size: 0.75em; color: #666;">
+                            🔑 {keywords}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # 페이지 이미지
                 if p-1 < len(st.session_state.pdf_images):
                     st.image(st.session_state.pdf_images[p-1], use_column_width=True)
 
@@ -252,7 +332,7 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.write(answer)
 
     if st.button("새로운 분석 시작"):
-        for k in ['relevant_pages', 'selected_pages', 'uploaded_file',
+        for k in ['relevant_pages', 'page_info', 'selected_pages', 'uploaded_file',
                   'original_pdf_bytes', 'pdf_images', 'step']:
             st.session_state.pop(k, None)
         st.rerun()

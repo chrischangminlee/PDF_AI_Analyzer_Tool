@@ -41,6 +41,7 @@ st.sidebar.markdown("[K-Actuary AI Doc Analyzer (Old Ver.)](https://kactuarypdf.
 
 st.title("이창민의 PDF AI 세부 분석 Tool")
 st.write(
+    "본 PDF AI 세부 분석 Tool은 단계적 AI활용과 Human Input을 통해 AI 환각효과를 최소화 하고자 합니다.  \n"
     "- **1단계** PDF 업로드 + 질문 입력  \n"
     "- **2단계** 관련 페이지 AI 추천 & 직접 선택  \n"
     "- **3단계** 선택한 페이지만으로 최종 분석"

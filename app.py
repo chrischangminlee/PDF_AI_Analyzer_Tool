@@ -30,7 +30,7 @@ genai.configure(api_key=api_key)
 st.sidebar.title("소개")
 st.sidebar.markdown("""
 본 서비스는 AI를 활용하여 다양한 종류의 PDF를 세부분석 할 수 있게 도와주는 AI 도구 입니다.
-* Gemini 1.5 flash model을 사용하고 있어 답변 생성 속도가 느릴 수 있습니다.
+* 무료 Gemini model을 사용하고 있어 답변 생성 속도가 느릴 수 있습니다.
 """)
 st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">(주의)본 AI가 제공하는 답변은 참고용이며, 정확성을 보장할 수 없습니다. 보안을 위해 회사 기밀, 개인정보등은 제공하지 않기를 권장드리며, 반드시 실제 업무에 적용하기 전에 검토하시길 바랍니다.</p>', unsafe_allow_html=True)
 st.sidebar.markdown("### 타 Link")
@@ -110,7 +110,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         예시:
         10|7|요구자본,리스크,자본충족률|상
         """
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-pro-preview-06-05')
         resp = model.generate_content([uploaded_file, prompt])
         return resp.text.strip()
     except Exception as e:
@@ -164,7 +164,7 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
     2. 답변의 모든 근거는 위 '페이지 매핑 정보'를 사용하여, **사용자가 알아보기 쉬운 '문서상 페이지 번호'로만 언급**해주세요.
     3. 만약 문서상 페이지 번호가 '없음'인 경우에만 예외적으로 "실제 3페이지에 따르면..." 과 같이 실제 페이지 번호를 언급할 수 있습니다.
     """
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-pro-preview-06-05")
     resp = model.generate_content([uploaded_sel, prompt])
     return resp.text
 

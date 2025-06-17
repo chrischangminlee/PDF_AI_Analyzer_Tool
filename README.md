@@ -56,7 +56,7 @@ streamlit run app.py
 ## 기술 스택
 
 - **Frontend**: Streamlit
-- **AI Model**: Google Gemini 1.5 Flash
+- **AI Model**: Google Gemini 2.0 Flash
 - **PDF Processing**: PyPDF2, pdf2image
 - **Image Processing**: Pillow
 - **Environment Management**: python-dotenv

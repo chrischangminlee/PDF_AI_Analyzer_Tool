@@ -203,7 +203,7 @@ if submitted and pdf_file and user_prompt_input:
         
         pages, page_info = parse_page_info(pages_response)
         total_pages = len(st.session_state.pdf_images)
-        st.session_state.relevant_pages = [p for p in pages if 1 <= p <= total_pages]
+        st.session_state.relevant_pages = list(dict.fromkeys([p for p in pages if 1 <= p <= total_pages]))
         st.session_state.page_info = page_info
 
         st.session_state.step = 2

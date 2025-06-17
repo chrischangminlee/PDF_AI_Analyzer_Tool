@@ -33,30 +33,40 @@ def add_page_numbers_to_pdf(pdf_bytes: bytes) -> bytes:
     PDF 모든 페이지 좌측 상단에 'P{물리적번호}'를 새겨
     다시 PDF 바이트로 반환.
     """
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    writer = PdfWriter()
+    try:
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
 
-    for idx, page in enumerate(reader.pages, start=1):
-        # 페이지 크기 액세스
-        width = float(page.mediabox.width)
-        height = float(page.mediabox.height)
+        for idx, page in enumerate(reader.pages, start=1):
+            try:
+                # 페이지 크기 액세스
+                width = float(page.mediabox.width)
+                height = float(page.mediabox.height)
 
-        # ReportLab 캔버스에 번호 그리기
-        packet = io.BytesIO()
-        c = canvas.Canvas(packet, pagesize=(width, height))
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(10, height - 20, f"P{idx}")
-        c.save()
+                # ReportLab 캔버스에 번호 그리기
+                packet = io.BytesIO()
+                c = canvas.Canvas(packet, pagesize=(width, height))
+                c.setFont("Helvetica-Bold", 10)
+                c.drawString(10, height - 20, f"P{idx}")
+                c.save()
 
-        # 오버레이 병합
-        packet.seek(0)
-        overlay = PdfReader(packet)
-        page.merge_page(overlay.pages[0])
-        writer.add_page(page)
+                # 오버레이 병합
+                packet.seek(0)
+                overlay = PdfReader(packet)
+                page.merge_page(overlay.pages[0])
+                writer.add_page(page)
+            except Exception as e:
+                st.error(f"페이지 {idx} 처리 중 오류: {e}")
+                # 오류가 발생한 페이지는 원본 그대로 추가
+                writer.add_page(page)
 
-    out = io.BytesIO()
-    writer.write(out)
-    return out.getvalue()
+        out = io.BytesIO()
+        writer.write(out)
+        return out.getvalue()
+    except Exception as e:
+        st.error(f"PDF 페이지 번호 추가 중 오류 발생: {e}")
+        # 오류 발생 시 원본 PDF 그대로 반환
+        return pdf_bytes
 
 # ───────────────────────────────────────────────
 # 2. 사이드바 & 기본 설명 (변경 없음)
@@ -199,39 +209,55 @@ with st.form("upload_form"):
 
 if submitted and pdf_file and user_prompt_input:
     with st.spinner("PDF 업로드 및 AI 분석 중..."):
-        # 세션 값 초기화
-        for k in ['relevant_pages', 'page_info', 'selected_pages', 'pdf_images']:
-            st.session_state[k] = []
-        st.session_state.original_pdf_bytes = pdf_file.read()
-        st.session_state.user_prompt = user_prompt_input
-
-        # ★ PDF에 페이지 번호 새기기 ★
-        annotated_bytes = add_page_numbers_to_pdf(st.session_state.original_pdf_bytes)
-        st.session_state.annotated_pdf_bytes = annotated_bytes
-
-        # Gemini 업로드용 임시 파일
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(annotated_bytes)
-            tmp_path = tmp.name
         try:
-            uploaded_file = upload_pdf_to_gemini(tmp_path)
-        finally:
-            os.unlink(tmp_path)
+            # 세션 값 초기화
+            for k in ['relevant_pages', 'page_info', 'selected_pages', 'pdf_images']:
+                st.session_state[k] = []
+            st.session_state.original_pdf_bytes = pdf_file.read()
+            st.session_state.user_prompt = user_prompt_input
 
-        # 이미지 변환 (번호가 찍힌 PDF 기준)
-        st.session_state.pdf_images = convert_pdf_to_images(annotated_bytes)
+            st.info("1/6: PDF 읽기 완료")
 
-        # Gemini로 관련 페이지 찾기
-        pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
-        pages, page_info = parse_page_info(pages_response)
+            # ★ PDF에 페이지 번호 새기기 ★
+            annotated_bytes = add_page_numbers_to_pdf(st.session_state.original_pdf_bytes)
+            st.session_state.annotated_pdf_bytes = annotated_bytes
 
-        total_pages = len(st.session_state.pdf_images)
-        st.session_state.relevant_pages = [p for p in dict.fromkeys(pages) if 1 <= p <= total_pages]
-        st.session_state.page_info = page_info
+            st.info("2/6: 페이지 번호 추가 완료")
 
-        st.session_state.step = 2
-        st.success("AI가 관련 페이지를 찾았습니다!")
-        st.rerun()
+            # Gemini 업로드용 임시 파일
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(annotated_bytes)
+                tmp_path = tmp.name
+            try:
+                uploaded_file = upload_pdf_to_gemini(tmp_path)
+                st.info("3/6: Gemini 업로드 완료")
+            finally:
+                os.unlink(tmp_path)
+
+            # 이미지 변환 (번호가 찍힌 PDF 기준)
+            st.session_state.pdf_images = convert_pdf_to_images(annotated_bytes)
+            st.info("4/6: 이미지 변환 완료")
+
+            # Gemini로 관련 페이지 찾기
+            pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
+            st.info("5/6: AI 페이지 분석 완료")
+            
+            pages, page_info = parse_page_info(pages_response)
+
+            total_pages = len(st.session_state.pdf_images)
+            st.session_state.relevant_pages = [p for p in dict.fromkeys(pages) if 1 <= p <= total_pages]
+            st.session_state.page_info = page_info
+
+            st.session_state.step = 2
+            st.success("6/6: AI가 관련 페이지를 찾았습니다!")
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"PDF 분석 중 오류 발생: {str(e)}")
+            st.error("오류 상세 정보:")
+            st.code(str(e))
+            import traceback
+            st.code(traceback.format_exc())
 
 # ───────────────────────────────────────────────
 # 6. 2단계: 페이지 선택 (UI 로직 동일, 이미지·번호는 annotated_pdf 기준)

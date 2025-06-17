@@ -110,7 +110,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         예시:
         10|7|요구자본,리스크,자본충족률|상
         """
-        model = genai.GenerativeModel('gemini-2.5-pro-preview-06-05')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         resp = model.generate_content([uploaded_file, prompt])
         return resp.text.strip()
     except Exception as e:
@@ -164,7 +164,7 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
     2. 답변의 모든 근거는 위 '페이지 매핑 정보'를 사용하여, **사용자가 알아보기 쉬운 '문서상 페이지 번호'로만 언급**해주세요.
     3. 만약 문서상 페이지 번호가 '없음'인 경우에만 예외적으로 "실제 3페이지에 따르면..." 과 같이 실제 페이지 번호를 언급할 수 있습니다.
     """
-    model = genai.GenerativeModel("gemini-2.5-pro-preview-06-05")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     resp = model.generate_content([uploaded_sel, prompt])
     return resp.text
 

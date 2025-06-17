@@ -84,7 +84,7 @@ def parse_page_info(gemini_response):
                 if len(parts) == 4:
                     physical_page, logical_page, page_response , relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip(), parts[3].strip()
                     pages.append(physical_page)
-                    page_info[physical_page] = {'logical_page': logical_page, 'page_response': page_response, 'relevance': relevance}
+                    page_info[physical_page] = {'page_response': page_response, 'relevance': relevance}
             except (ValueError, IndexError): continue
     return pages, page_info
 

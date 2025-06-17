@@ -5,8 +5,6 @@ import os, io, tempfile
 from PyPDF2 import PdfReader, PdfWriter
 from pdf2image import convert_from_bytes
 from PIL import Image
-from reportlab.pdfgen import canvas               # ★NEW★
-from reportlab.lib.units import mm                # ★NEW★
 
 # ───────────────────────────────────────────────
 # 0. 환경설정
@@ -25,51 +23,9 @@ if not api_key:
     st.stop()
 genai.configure(api_key=api_key)
 
-# ───────────────────────────────────────────────
-# 1. PDF 각 페이지에 물리적 번호 새기기 ★NEW★
-# ───────────────────────────────────────────────
-def add_page_numbers_to_pdf(pdf_bytes: bytes) -> bytes:
-    """
-    PDF 모든 페이지 좌측 상단에 'P{물리적번호}'를 새겨
-    다시 PDF 바이트로 반환.
-    """
-    try:
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        writer = PdfWriter()
-
-        for idx, page in enumerate(reader.pages, start=1):
-            try:
-                # 페이지 크기 액세스
-                width = float(page.mediabox.width)
-                height = float(page.mediabox.height)
-
-                # ReportLab 캔버스에 번호 그리기
-                packet = io.BytesIO()
-                c = canvas.Canvas(packet, pagesize=(width, height))
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(10, height - 20, f"P{idx}")
-                c.save()
-
-                # 오버레이 병합
-                packet.seek(0)
-                overlay = PdfReader(packet)
-                page.merge_page(overlay.pages[0])
-                writer.add_page(page)
-            except Exception as e:
-                st.error(f"페이지 {idx} 처리 중 오류: {e}")
-                # 오류가 발생한 페이지는 원본 그대로 추가
-                writer.add_page(page)
-
-        out = io.BytesIO()
-        writer.write(out)
-        return out.getvalue()
-    except Exception as e:
-        st.error(f"PDF 페이지 번호 추가 중 오류 발생: {e}")
-        # 오류 발생 시 원본 PDF 그대로 반환
-        return pdf_bytes
 
 # ───────────────────────────────────────────────
-# 2. 사이드바 & 기본 설명 (변경 없음)
+# 1. 사이드바 & 기본 설명
 # ───────────────────────────────────────────────
 st.sidebar.title("소개")
 st.sidebar.markdown("""
@@ -82,7 +38,55 @@ st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrisl
 st.sidebar.markdown("[K-계리 AI 플랫폼](https://chrischangminlee.github.io/K_Actuary_AI_Agent_Platform/)")
 st.sidebar.markdown("[K-Actuary AI Doc Analyzer (Old Ver.)](https://kactuarypdf.streamlit.app/)")
 
-# (임시 디버깅용 텍스트 추출 도구 블록 – 기존 그대로, 생략)
+# ───────────────────────────────────────────────
+# PDF 텍스트 분석 도구 (임시 디버깅용)
+# ───────────────────────────────────────────────
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔧 PDF 텍스트 분석 도구")
+st.sidebar.markdown("<small>페이지별 텍스트 추출 상태 확인용 (임시)</small>", unsafe_allow_html=True)
+
+debug_pdf = st.sidebar.file_uploader("PDF 파일 선택", type=['pdf'], key="debug_pdf")
+
+if debug_pdf:
+    if st.sidebar.button("텍스트 분석 실행", key="debug_analyze"):
+        with st.sidebar.expander("📋 분석 결과", expanded=True):
+            try:
+                reader = PdfReader(debug_pdf)
+                blank_count = 0
+                
+                st.write(f"**총 페이지 수:** {len(reader.pages)}")
+                st.write("**페이지별 텍스트 상태:**")
+                
+                # 결과를 담을 리스트
+                results = []
+                
+                for idx, page in enumerate(reader.pages, start=1):
+                    txt = page.extract_text() or ""
+                    if len(txt.strip()) == 0:
+                        blank_count += 1
+                        results.append(f"{idx:>3}: <NO TEXT>")
+                    else:
+                        # 텍스트가 있는 경우 첫 40자 미리보기
+                        preview = txt.strip().replace('\n', ' ')[:40]
+                        if len(txt.strip()) > 40:
+                            preview += "..."
+                        results.append(f"{idx:>3}: {preview}")
+                
+                # 결과를 스크롤 가능한 영역에 표시
+                result_text = "\n".join(results)
+                st.code(result_text, language="text")
+                
+                st.write(f"**📊 요약:**")
+                st.write(f"- 텍스트 있는 페이지: {len(reader.pages) - blank_count}개")
+                st.write(f"- 텍스트 없는 페이지: {blank_count}개")
+                
+                if blank_count > 0:
+                    st.warning(f"⚠️ {blank_count}개 페이지에서 텍스트를 추출할 수 없습니다.")
+                else:
+                    st.success("✅ 모든 페이지에서 텍스트가 정상적으로 추출되었습니다.")
+                    
+            except Exception as e:
+                st.error(f"❌ 분석 중 오류 발생: {str(e)}")
 
 st.title("이창민의 PDF AI 세부 분석 Tool")
 st.write(
@@ -93,7 +97,7 @@ st.write(
 )
 
 # ───────────────────────────────────────────────
-# 3. 세션 상태 초기화
+# 2. 세션 상태 초기화
 # ───────────────────────────────────────────────
 for k, v in {
     'relevant_pages': [],
@@ -101,15 +105,15 @@ for k, v in {
     'selected_pages': [],
     'user_prompt': "",
     'original_pdf_bytes': None,
-    'annotated_pdf_bytes': None,        # ★NEW★
     'pdf_images': [],
     'step': 1,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
+
 # ───────────────────────────────────────────────
-# 4. 유틸 함수
+# 3. 유틸 함수
 # ───────────────────────────────────────────────
 def upload_pdf_to_gemini(pdf_path):
     return genai.upload_file(pdf_path, mime_type="application/pdf")
@@ -131,8 +135,7 @@ def parse_page_info(gemini_response):
                     physical_page, page_response, relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip()
                     pages.append(physical_page)
                     page_info[physical_page] = {'page_response': page_response, 'relevance': relevance}
-            except (ValueError, IndexError):
-                continue
+            except (ValueError, IndexError): continue
     return pages, page_info
 
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
@@ -140,31 +143,26 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         prompt = f"""
         당신은 PDF의 각 페이지를 개별적으로 분석하는 고도로 전문화된 '페이지 단위 분석 엔진'입니다. 당신의 유일한 임무는 지시에 따라 페이지를 하나씩, 완전히 독립적으로 처리하는 것입니다.
 
-**경고: 가장 중요한 규칙**
-        PDF 좌상단 'P{{번호}}' 표기를 기준으로 답하십시오
-
 ## 사용자 질문
 {user_prompt}
 
 ## 처리 절차
-PDF의 모든 페이지를 좌상단 1페이지부터 마지막 페이지까지 순서대로 확인하며 다음을 수행합니다.
-1.  **물리적 페이지 번호 확정:** 현재 분석 중인 페이지의 PDF 좌상단 'P{{번호}}' 를 명확히 인지합니다.
-2.  **페이지 격리:** 분석할 단일 페이지(P페이지)를 지정하고, 다른 모든 페이지의 내용은 완벽하게 무시합니다. 당신의 기억 속에는 오직 N페이지의 정보만 존재해야 합니다.
-3.  **독립적 내용 분석:** 오직 P페이지에 존재하는 텍스트, 표, 이미지 등의 내용만을 기반으로 사용자 질문과의 연관성을 평가합니다.
-4.  **독점적 페이지별 답변 추출:** **오직 P페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 페이지별 답변을 추출합니다. 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
-5.  **결과 생성:** 분석이 완료되면, 아래 '응답 형식'에 맞춰 N페이지에 대한 결과 라인 1개를 생성합니다.
-6.  **메모리 리셋:** P페이지에 대한 작업이 끝나면, N페이지에 대한 모든 정보를 즉시 잊고 다음 페이지 분석을 위해 준비합니다.
+PDF의 모든 페이지를 1페이지부터 마지막 페이지까지 순서대로 확인하며 다음을 수행합니다.
+1.  **페이지 격리:** 분석할 단일 페이지(N페이지)를 지정하고, 다른 모든 페이지의 내용은 완벽하게 무시합니다. 당신의 기억 속에는 오직 N페이지의 정보만 존재해야 합니다.
+2.  **독립적 내용 분석:** 오직 N페이지에 존재하는 텍스트, 표, 이미지 등의 내용만을 기반으로 사용자 질문과의 연관성을 평가합니다.
+3.  **독점적 페이지별 답변 추출:** **오직 N페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 페이지별 답변을 추출합니다. 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
+4.  **결과 생성:** 분석이 완료되면, 아래 '응답 형식'에 맞춰 N페이지에 대한 결과 라인 1개를 생성합니다.
+5.  **메모리 리셋:** N페이지에 대한 작업이 끝나면, N페이지에 대한 모든 정보를 즉시 잊고 다음 페이지 분석을 위해 준비합니다.
 
 ## 추가 지시사항
-- 물리적 페이지
 - 관련도가 '하'인 페이지는 결과에 절대 포함하지 마세요.
 - 최종 결과는 질문과의 관련도가 '상' 또는 '중'인 페이지들을 우선적으로, 관련도 높은 순서대로 최대 10개까지 보여주세요.
 
 ## 응답 형식 (각 줄마다 하나의 페이지 정보, 파이프(|)로 구분)
-좌측상단 PDF Page 번호 P{{번호}}|페이지별 답변|관련도
+물리적페이지번호|페이지별답변|관련도
 
 ## 예시
-10|요구자본의 정의는 Var 95% 입니다.|상
+10|요구자본,리스크,자본충족률|상
         """
         model = genai.GenerativeModel('gemini-2.0-flash')
         resp = model.generate_content([uploaded_file, prompt])
@@ -173,41 +171,44 @@ PDF의 모든 페이지를 좌상단 1페이지부터 마지막 페이지까지 
         st.error(f"Gemini 호출 오류: {e}")
         return ""
 
+# ★★★★★ 프롬프트가 강화된 함수 ★★★★★
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
-    """
-    선택된 물리적 페이지만 모아 임시 PDF를 만들고
-    Gemini-flash 로 최종 답변 생성.
-    """
-    if not selected_pages:
-        return "선택된 페이지가 없습니다."
+    if not selected_pages: return "선택된 페이지가 없습니다."
 
-    reader = PdfReader(io.BytesIO(st.session_state.annotated_pdf_bytes))
+    reader = PdfReader(io.BytesIO(st.session_state.original_pdf_bytes))
     writer = PdfWriter()
-    for p in sorted(selected_pages):
+    sorted_pages = sorted(selected_pages)
+    
+    for p in sorted_pages:
         if 1 <= p <= len(reader.pages):
             writer.add_page(reader.pages[p - 1])
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         writer.write(tmp)
-        sel_pdf_path = tmp.name
+        tmp_path = tmp.name
     try:
-        uploaded_sel = upload_pdf_to_gemini(sel_pdf_path)
+        uploaded_sel = upload_pdf_to_gemini(tmp_path)
     finally:
-        os.unlink(sel_pdf_path)
+        os.unlink(tmp_path)
 
     prompt = f"""
-당신은 문서 분석 전문가입니다.  
-주어진 PDF는 좌측 상단 'P{{n}}' 번호가 찍혀 있으며, 사용자 질문에 맞춰 답하십시오.
+    당신은 사용자의 질문에 답변하는 매우 유능하고 친절한 문서 분석 전문가입니다.
+    주어진 PDF는 사용자가 원본 문서에서 일부 페이지만을 선택하여 생성한 것입니다.
 
-## 사용자 질문
-{user_prompt}
+        ## 사용자 질문
+    {user_prompt}
+
+    ## 상세 지시사항
+    1. 제공된 PDF 내용만을 기반으로 사용자 질문에 대해 상세하고 구조적으로 답변하세요.
+    
     """
     model = genai.GenerativeModel("gemini-2.0-flash")
     resp = model.generate_content([uploaded_sel, prompt])
     return resp.text
 
+
 # ───────────────────────────────────────────────
-# 5. 1단계: 업로드 & 질문 입력
+# 4. 1단계: 업로드 & 질문 입력
 # ───────────────────────────────────────────────
 st.header("1단계: PDF 업로드 및 질문 입력")
 with st.form("upload_form"):
@@ -220,58 +221,36 @@ with st.form("upload_form"):
 
 if submitted and pdf_file and user_prompt_input:
     with st.spinner("PDF 업로드 및 AI 분석 중..."):
+        for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
+            st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
+        
+        pdf_bytes = pdf_file.read()
+        st.session_state.original_pdf_bytes = pdf_bytes
+        st.session_state.user_prompt = user_prompt_input
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(pdf_bytes)
+            tmp_path = tmp.name
         try:
-            # 세션 값 초기화
-            for k in ['relevant_pages', 'page_info', 'selected_pages', 'pdf_images']:
-                st.session_state[k] = []
-            st.session_state.original_pdf_bytes = pdf_file.read()
-            st.session_state.user_prompt = user_prompt_input
+            uploaded_file = upload_pdf_to_gemini(tmp_path)
+        finally:
+            os.unlink(tmp_path)
+        
+        st.session_state.pdf_images = convert_pdf_to_images(pdf_bytes)
+        pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
+        
+        pages, page_info = parse_page_info(pages_response)
+        total_pages = len(st.session_state.pdf_images)
+        st.session_state.relevant_pages = list(dict.fromkeys([p for p in pages if 1 <= p <= total_pages]))
+        st.session_state.page_info = page_info
 
-            st.info("1/6: PDF 읽기 완료")
+        st.session_state.step = 2
+        st.success("AI가 관련 페이지를 찾았습니다!")
+        st.rerun()
 
-            # ★ PDF에 페이지 번호 새기기 ★
-            annotated_bytes = add_page_numbers_to_pdf(st.session_state.original_pdf_bytes)
-            st.session_state.annotated_pdf_bytes = annotated_bytes
-
-            st.info("2/6: 페이지 번호 추가 완료")
-
-            # Gemini 업로드용 임시 파일
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(annotated_bytes)
-                tmp_path = tmp.name
-            try:
-                uploaded_file = upload_pdf_to_gemini(tmp_path)
-                st.info("3/6: Gemini 업로드 완료")
-            finally:
-                os.unlink(tmp_path)
-
-            # 이미지 변환 (번호가 찍힌 PDF 기준)
-            st.session_state.pdf_images = convert_pdf_to_images(annotated_bytes)
-            st.info("4/6: 이미지 변환 완료")
-
-            # Gemini로 관련 페이지 찾기
-            pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
-            st.info("5/6: AI 페이지 분석 완료")
-            
-            pages, page_info = parse_page_info(pages_response)
-
-            total_pages = len(st.session_state.pdf_images)
-            st.session_state.relevant_pages = [p for p in dict.fromkeys(pages) if 1 <= p <= total_pages]
-            st.session_state.page_info = page_info
-
-            st.session_state.step = 2
-            st.success("6/6: AI가 관련 페이지를 찾았습니다!")
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"PDF 분석 중 오류 발생: {str(e)}")
-            st.error("오류 상세 정보:")
-            st.code(str(e))
-            import traceback
-            st.code(traceback.format_exc())
 
 # ───────────────────────────────────────────────
-# 6. 2단계: 페이지 선택 (UI 로직 동일, 이미지·번호는 annotated_pdf 기준)
+# 5. 2단계: 페이지 선택
 # ───────────────────────────────────────────────
 if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.header("2단계: 관련 페이지 확인 & 선택")
@@ -279,7 +258,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
 
     top_msg, top_btn = st.empty(), st.empty()
     selected_pages = []
-
+    
     cols = st.columns(3)
     for i, p in enumerate(st.session_state.relevant_pages):
         with cols[i % 3]:
@@ -289,31 +268,24 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                     if st.checkbox("", key=f"cb_{p}", label_visibility="collapsed"):
                         selected_pages.append(p)
                 with txt_col:
-                    st.markdown(f"**📄 P{p}**")
+                    st.markdown(f"**📄 관련 페이지**")
 
                 if p in st.session_state.page_info:
                     info = st.session_state.page_info[p]
-                    page_response = info.get('page_response', '')
-                    relevance = info.get('relevance', '')
-
-                    if relevance == '상':
-                        color, bg = "🔴", "#ffe6e6"
-                    elif relevance == '중':
-                        color, bg = "🟡", "#fff9e6"
-                    else:
-                        color, bg = "⚪", "#f0f0f0"
-
-                    st.markdown(
-                        f"""
-<div style="background-color:{bg};padding:8px;border-radius:5px;margin:5px 0;">
-  <div style="font-size:0.8em;font-weight:bold;">{color} 관련도: {relevance}</div>
-  <div style="font-size:0.75em;color:#666;">🔑 {page_response}</div>
-</div>""",
-                        unsafe_allow_html=True,
-                    )
-
-                if p - 1 < len(st.session_state.pdf_images):
-                    st.image(st.session_state.pdf_images[p - 1], use_column_width=True)
+                    page_response, relevance = info.get('page_response', ''), info.get('relevance', '')
+                    
+                    if relevance == '상': color, bg_color = "🔴", "#ffe6e6"
+                    elif relevance == '중': color, bg_color = "🟡", "#fff9e6"
+                    else: color, bg_color = "⚪", "#f0f0f0"
+                    
+                    st.markdown(f"""
+                    <div style="background-color: {bg_color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
+                        <div style="font-size: 0.8em; font-weight: bold;">{color} 관련도: {relevance}</div>
+                        <div style="font-size: 0.75em; color: #666;">🔑 {page_response}</div>
+                    </div>""", unsafe_allow_html=True)
+                
+                if p-1 < len(st.session_state.pdf_images):
+                    st.image(st.session_state.pdf_images[p-1], use_column_width=True)
 
     st.session_state.selected_pages = selected_pages
 
@@ -332,13 +304,14 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
             st.rerun()
 
 # ───────────────────────────────────────────────
-# 7. 3단계: 최종 분석
+# 6. 3단계: 최종 분석
 # ───────────────────────────────────────────────
 if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.header("3단계: 최종 분석 결과")
     with st.spinner("선택한 페이지만으로 AI가 답변 생성 중..."):
         answer = generate_final_answer_from_selected_pages(
-            st.session_state.selected_pages, st.session_state.user_prompt
+            st.session_state.selected_pages,
+            st.session_state.user_prompt
         )
 
     st.subheader("📋 분석 결과")
@@ -347,6 +320,6 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.markdown(answer)
 
     if st.button("새로운 분석 시작"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
+

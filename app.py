@@ -38,6 +38,56 @@ st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrisl
 st.sidebar.markdown("[K-계리 AI 플랫폼](https://chrischangminlee.github.io/K_Actuary_AI_Agent_Platform/)")
 st.sidebar.markdown("[K-Actuary AI Doc Analyzer (Old Ver.)](https://kactuarypdf.streamlit.app/)")
 
+# ───────────────────────────────────────────────
+# PDF 텍스트 분석 도구 (임시 디버깅용)
+# ───────────────────────────────────────────────
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔧 PDF 텍스트 분석 도구")
+st.sidebar.markdown("<small>페이지별 텍스트 추출 상태 확인용 (임시)</small>", unsafe_allow_html=True)
+
+debug_pdf = st.sidebar.file_uploader("PDF 파일 선택", type=['pdf'], key="debug_pdf")
+
+if debug_pdf:
+    if st.sidebar.button("텍스트 분석 실행", key="debug_analyze"):
+        with st.sidebar.expander("📋 분석 결과", expanded=True):
+            try:
+                reader = PdfReader(debug_pdf)
+                blank_count = 0
+                
+                st.write(f"**총 페이지 수:** {len(reader.pages)}")
+                st.write("**페이지별 텍스트 상태:**")
+                
+                # 결과를 담을 리스트
+                results = []
+                
+                for idx, page in enumerate(reader.pages, start=1):
+                    txt = page.extract_text() or ""
+                    if len(txt.strip()) == 0:
+                        blank_count += 1
+                        results.append(f"{idx:>3}: <NO TEXT>")
+                    else:
+                        # 텍스트가 있는 경우 첫 40자 미리보기
+                        preview = txt.strip().replace('\n', ' ')[:40]
+                        if len(txt.strip()) > 40:
+                            preview += "..."
+                        results.append(f"{idx:>3}: {preview}")
+                
+                # 결과를 스크롤 가능한 영역에 표시
+                result_text = "\n".join(results)
+                st.code(result_text, language="text")
+                
+                st.write(f"**📊 요약:**")
+                st.write(f"- 텍스트 있는 페이지: {len(reader.pages) - blank_count}개")
+                st.write(f"- 텍스트 없는 페이지: {blank_count}개")
+                
+                if blank_count > 0:
+                    st.warning(f"⚠️ {blank_count}개 페이지에서 텍스트를 추출할 수 없습니다.")
+                else:
+                    st.success("✅ 모든 페이지에서 텍스트가 정상적으로 추출되었습니다.")
+                    
+            except Exception as e:
+                st.error(f"❌ 분석 중 오류 발생: {str(e)}")
+
 st.title("이창민의 PDF AI 세부 분석 Tool")
 st.write(
     "본 PDF AI 세부 분석 Tool은 단계적 AI활용과 Human Input을 통해 AI 환각효과를 최소화 하고자 합니다.  \n"
@@ -81,8 +131,8 @@ def parse_page_info(gemini_response):
         if '|' in line:
             try:
                 parts = line.strip().split('|')
-                if len(parts) == 4:
-                    physical_page, logical_page, page_response , relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip(), parts[3].strip()
+                if len(parts) == 3:
+                    physical_page, page_response, relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip()
                     pages.append(physical_page)
                     page_info[physical_page] = {'page_response': page_response, 'relevance': relevance}
             except (ValueError, IndexError): continue
@@ -93,32 +143,26 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         prompt = f"""
         당신은 PDF의 각 페이지를 개별적으로 분석하는 고도로 전문화된 '페이지 단위 분석 엔진'입니다. 당신의 유일한 임무는 지시에 따라 페이지를 하나씩, 완전히 독립적으로 처리하는 것입니다.
 
-**경고: 가장 중요한 규칙**
-        응답 형식의 첫 번째 값인 `PDF실제페이지`는 반드시 파일의 물리적 페이지 순서(첫 페이지=1, 두 번째 페이지=2, ...)여야 합니다. 이 값을 페이지에 인쇄된 '문서상 페이지'와 혼동하면 전체 시스템이 망가집니다. 이 값의 정확성은 절대적입니다.
-
 ## 사용자 질문
 {user_prompt}
 
 ## 처리 절차
 PDF의 모든 페이지를 1페이지부터 마지막 페이지까지 순서대로 확인하며 다음을 수행합니다.
-1.  **물리적 페이지 번호 확정:** 현재 분석 중인 페이지의 물리적 순서 번호(N)를 명확히 인지합니다.
-2.  **페이지 격리:** 분석할 단일 페이지(N페이지)를 지정하고, 다른 모든 페이지의 내용은 완벽하게 무시합니다. 당신의 기억 속에는 오직 N페이지의 정보만 존재해야 합니다.
-3.  **독립적 내용 분석:** 오직 N페이지에 존재하는 텍스트, 표, 이미지 등의 내용만을 기반으로 사용자 질문과의 연관성을 평가합니다.
-4.  **독점적 페이지별 답변 추출:** **오직 N페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 페이지별 답변을 추출합니다. 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
-5.  **결과 생성:** 분석이 완료되면, 아래 '응답 형식'에 맞춰 N페이지에 대한 결과 라인 1개를 생성합니다.
-6.  **메모리 리셋:** N페이지에 대한 작업이 끝나면, N페이지에 대한 모든 정보를 즉시 잊고 다음 페이지 분석을 위해 준비합니다.
+1.  **페이지 격리:** 분석할 단일 페이지(N페이지)를 지정하고, 다른 모든 페이지의 내용은 완벽하게 무시합니다. 당신의 기억 속에는 오직 N페이지의 정보만 존재해야 합니다.
+2.  **독립적 내용 분석:** 오직 N페이지에 존재하는 텍스트, 표, 이미지 등의 내용만을 기반으로 사용자 질문과의 연관성을 평가합니다.
+3.  **독점적 페이지별 답변 추출:** **오직 N페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 페이지별 답변을 추출합니다. 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
+4.  **결과 생성:** 분석이 완료되면, 아래 '응답 형식'에 맞춰 N페이지에 대한 결과 라인 1개를 생성합니다.
+5.  **메모리 리셋:** N페이지에 대한 작업이 끝나면, N페이지에 대한 모든 정보를 즉시 잊고 다음 페이지 분석을 위해 준비합니다.
 
 ## 추가 지시사항
-- 물리적 페이지
-- 문서에 인쇄된 페이지 번호가 있다면 함께 찾아주세요. 없다면 '없음'으로 표기합니다.
 - 관련도가 '하'인 페이지는 결과에 절대 포함하지 마세요.
 - 최종 결과는 질문과의 관련도가 '상' 또는 '중'인 페이지들을 우선적으로, 관련도 높은 순서대로 최대 10개까지 보여주세요.
 
 ## 응답 형식 (각 줄마다 하나의 페이지 정보, 파이프(|)로 구분)
-물리적 페이지|문서상페이지|페이지별 답변|관련도
+물리적페이지번호|페이지별답변|관련도
 
 ## 예시
-10|7|요구자본,리스크,자본충족률|상
+10|요구자본,리스크,자본충족률|상
         """
         model = genai.GenerativeModel('gemini-2.0-flash')
         resp = model.generate_content([uploaded_file, prompt])
@@ -210,7 +254,7 @@ if submitted and pdf_file and user_prompt_input:
 # ───────────────────────────────────────────────
 if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.header("2단계: 관련 페이지 확인 & 선택")
-    st.write(f"**AI 추천 페이지:** {', '.join(map(str, st.session_state.relevant_pages))}")
+    st.write(f"**AI 추천 페이지 수:** {len(st.session_state.relevant_pages)}개")
 
     top_msg, top_btn = st.empty(), st.empty()
     selected_pages = []
@@ -224,8 +268,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                     if st.checkbox("", key=f"cb_{p}", label_visibility="collapsed"):
                         selected_pages.append(p)
                 with txt_col:
-                    # ★★★★★ UI가 단순하게 변경된 부분 ★★★★★
-                    st.markdown(f"**📄 페이지 {p}**")
+                    st.markdown(f"**📄 관련 페이지**")
 
                 if p in st.session_state.page_info:
                     info = st.session_state.page_info[p]
@@ -247,7 +290,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.session_state.selected_pages = selected_pages
 
     if selected_pages:
-        top_msg.success(f"선택된 페이지: {', '.join(map(str, sorted(selected_pages)))}")
+        top_msg.success(f"선택된 페이지: {len(selected_pages)}개")
         if top_btn.button("선택된 페이지만으로 최종 분석 실행", type="primary", key="run_top"):
             st.session_state.step = 3
             st.rerun()
@@ -273,7 +316,7 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
 
     st.subheader("📋 분석 결과")
     st.write(f"**질문:** {st.session_state.user_prompt}")
-    st.write(f"**분석에 사용된 페이지(실제 번호):** {', '.join(map(str, sorted(st.session_state.selected_pages)))}")
+    st.write(f"**분석에 사용된 페이지 수:** {len(st.session_state.selected_pages)}개")
     st.markdown(answer)
 
     if st.button("새로운 분석 시작"):

@@ -82,9 +82,9 @@ def parse_page_info(gemini_response):
             try:
                 parts = line.strip().split('|')
                 if len(parts) == 4:
-                    physical_page, logical_page, keywords, relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip(), parts[3].strip()
+                    physical_page, logical_page, page_response , relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip(), parts[3].strip()
                     pages.append(physical_page)
-                    page_info[physical_page] = {'logical_page': logical_page, 'keywords': keywords, 'relevance': relevance}
+                    page_info[physical_page] = {'logical_page': logical_page, 'page_response': page_response, 'relevance': relevance}
             except (ValueError, IndexError): continue
     return pages, page_info
 
@@ -102,7 +102,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
 ## 처리 절차 (PDF의 모든 페이지에 대해 다음 절차를 반복 수행)
 1.  **페이지 격리:** 분석할 단일 페이지(N페이지)를 지정하고, 다른 모든 페이지의 내용은 완벽하게 무시합니다. 당신의 기억 속에는 오직 N페이지의 정보만 존재해야 합니다.
 2.  **독립적 내용 분석:** 오직 N페이지에 존재하는 텍스트, 표, 이미지 등의 내용만을 기반으로 사용자 질문과의 연관성을 평가합니다.
-3.  **독점적 키워드 추출:** **오직 N페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 핵심 키워드 3개를 추출합니다. 이 키워드는 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
+3.  **독점적 페이지별 답변 추출:** **오직 N페이지의 내용 안에서만** 사용자 질문과 가장 관련성이 높은 페이지별 답변을 추출합니다. 당신의 일반 지식이나 다른 페이지의 내용에서 가져와서는 절대 안 됩니다.
 4.  **결과 생성:** 분석이 완료되면, 아래 '응답 형식'에 맞춰 N페이지에 대한 결과 라인 1개를 생성합니다.
 5.  **메모리 리셋:** N페이지에 대한 작업이 끝나면, N페이지에 대한 모든 정보를 즉시 잊고 다음 페이지 분석을 위해 준비합니다.
 
@@ -112,7 +112,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
 - 최종 결과는 질문과의 관련도가 '상' 또는 '중'인 페이지들을 우선적으로, 관련도 높은 순서대로 최대 10개까지 보여주세요.
 
 ## 응답 형식 (각 줄마다 하나의 페이지 정보, 파이프(|)로 구분)
-PDF실제페이지|문서상페이지|키워드1,키워드2,키워드3|관련도
+PDF실제페이지|문서상페이지|페이지별 답변|관련도
 
 ## 예시
 10|7|요구자본,리스크,자본충족률|상
@@ -242,7 +242,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
 
                 if p in st.session_state.page_info:
                     info = st.session_state.page_info[p]
-                    keywords, relevance = info.get('keywords', ''), info.get('relevance', '')
+                    page_response, relevance = info.get('page_response', ''), info.get('relevance', '')
                     
                     if relevance == '상': color, bg_color = "🔴", "#ffe6e6"
                     elif relevance == '중': color, bg_color = "🟡", "#fff9e6"
@@ -251,7 +251,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                     st.markdown(f"""
                     <div style="background-color: {bg_color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
                         <div style="font-size: 0.8em; font-weight: bold;">{color} 관련도: {relevance}</div>
-                        <div style="font-size: 0.75em; color: #666;">🔑 {keywords}</div>
+                        <div style="font-size: 0.75em; color: #666;">🔑 {page_response}</div>
                     </div>""", unsafe_allow_html=True)
                 
                 if p-1 < len(st.session_state.pdf_images):

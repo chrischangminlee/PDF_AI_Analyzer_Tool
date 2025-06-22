@@ -6,6 +6,10 @@ from PyPDF2 import PdfReader, PdfWriter
 from pdf2image import convert_from_bytes
 from PIL import Image
 
+# ★★★ 페이지 번호 오버레이용
+from reportlab.pdfgen import canvas          # ★★★
+from reportlab.lib.units import mm           # ★★★
+
 # ───────────────────────────────────────────────
 # 0. 환경설정
 # ───────────────────────────────────────────────
@@ -82,6 +86,33 @@ def convert_pdf_to_images(pdf_bytes):
         st.warning(f"이미지 변환 오류: {e}")
         return []
 
+# ★★★ 페이지 번호 삽입 함수
+def annotate_pdf_with_page_numbers(pdf_bytes):
+    reader = PdfReader(io.BytesIO(pdf_bytes))
+    writer = PdfWriter()
+
+    for idx, page in enumerate(reader.pages):
+        # 각 페이지 크기와 동일한 오버레이 PDF 생성
+        width = float(page.mediabox.width)
+        height = float(page.mediabox.height)
+
+        packet = io.BytesIO()
+        c = canvas.Canvas(packet, pagesize=(width, height))
+        c.setFont("Helvetica", 9)
+        # 좌측 상단(여백 10mm) 위치에 페이지 번호 작성
+        c.drawString(10 * mm, height - 15 * mm, str(idx + 1))
+        c.save()
+
+        packet.seek(0)
+        overlay_pdf = PdfReader(packet)
+        page.merge_page(overlay_pdf.pages[0])
+        writer.add_page(page)
+
+    output_stream = io.BytesIO()
+    writer.write(output_stream)
+    return output_stream.getvalue()
+# ★★★ 끝
+
 def parse_page_info(gemini_response):
     pages, page_info = [], {}
     for line in gemini_response.strip().split('\n'):
@@ -92,7 +123,8 @@ def parse_page_info(gemini_response):
                     physical_page, page_response, relevance = int(parts[0].strip()), parts[1].strip(), parts[2].strip()
                     pages.append(physical_page)
                     page_info[physical_page] = {'page_response': page_response, 'relevance': relevance}
-            except (ValueError, IndexError): continue
+            except (ValueError, IndexError):
+                continue
     return pages, page_info
 
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
@@ -130,12 +162,13 @@ PDF의 모든 페이지를 1페이지부터 마지막 페이지까지 순서대�
 
 # ★★★★★ 프롬프트가 강화된 함수 ★★★★★
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
-    if not selected_pages: return "선택된 페이지가 없습니다."
+    if not selected_pages:
+        return "선택된 페이지가 없습니다."
 
     reader = PdfReader(io.BytesIO(st.session_state.original_pdf_bytes))
     writer = PdfWriter()
     sorted_pages = sorted(selected_pages)
-    
+
     for p in sorted_pages:
         if 1 <= p <= len(reader.pages):
             writer.add_page(reader.pages[p - 1])
@@ -152,12 +185,11 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
     당신은 사용자의 질문에 답변하는 매우 유능하고 친절한 문서 분석 전문가입니다.
     주어진 PDF는 사용자가 원본 문서에서 일부 페이지만을 선택하여 생성한 것입니다.
 
-        ## 사용자 질문
-    {user_prompt}
+## 사용자 질문
+{user_prompt}
 
-    ## 상세 지시사항
-    1. 제공된 PDF 내용만을 기반으로 사용자 질문에 대해 상세하고 구조적으로 답변하세요.
-    
+## 상세 지시사항
+1. 제공된 PDF 내용만을 기반으로 사용자 질문에 대해 상세하고 구조적으로 답변하세요.
     """
     model = genai.GenerativeModel("gemini-2.0-flash")
     resp = model.generate_content([uploaded_sel, prompt])
@@ -178,24 +210,30 @@ with st.form("upload_form"):
 
 if submitted and pdf_file and user_prompt_input:
     with st.spinner("PDF 업로드 및 AI 분석 중..."):
+        # 세션 초기화
         for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
             st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
-        
-        pdf_bytes = pdf_file.read()
-        st.session_state.original_pdf_bytes = pdf_bytes
+
+        # 원본 PDF → 페이지 번호 삽입 → 세션 저장
+        original_bytes = pdf_file.read()
+        numbered_bytes = annotate_pdf_with_page_numbers(original_bytes)   # ★★★
+        st.session_state.original_pdf_bytes = numbered_bytes             # ★★★
         st.session_state.user_prompt = user_prompt_input
-        
+
+        # Gemini 업로드
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_bytes)
+            tmp.write(numbered_bytes)                                    # ★★★
             tmp_path = tmp.name
         try:
             uploaded_file = upload_pdf_to_gemini(tmp_path)
         finally:
             os.unlink(tmp_path)
-        
-        st.session_state.pdf_images = convert_pdf_to_images(pdf_bytes)
+
+        # 이미지 변환 (페이지 번호가 찍힌 상태)
+        st.session_state.pdf_images = convert_pdf_to_images(numbered_bytes)   # ★★★
+
+        # 관련 페이지 탐색
         pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
-        
         pages, page_info = parse_page_info(pages_response)
         total_pages = len(st.session_state.pdf_images)
         st.session_state.relevant_pages = list(dict.fromkeys([p for p in pages if 1 <= p <= total_pages]))
@@ -215,7 +253,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
 
     top_msg, top_btn = st.empty(), st.empty()
     selected_pages = []
-    
+
     cols = st.columns(3)
     for i, p in enumerate(st.session_state.relevant_pages):
         with cols[i % 3]:
@@ -230,19 +268,22 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
                 if p in st.session_state.page_info:
                     info = st.session_state.page_info[p]
                     page_response, relevance = info.get('page_response', ''), info.get('relevance', '')
-                    
-                    if relevance == '상': color, bg_color = "🔴", "#ffe6e6"
-                    elif relevance == '중': color, bg_color = "🟡", "#fff9e6"
-                    else: color, bg_color = "⚪", "#f0f0f0"
-                    
+
+                    if relevance == '상':
+                        color, bg_color = "🔴", "#ffe6e6"
+                    elif relevance == '중':
+                        color, bg_color = "🟡", "#fff9e6"
+                    else:
+                        color, bg_color = "⚪", "#f0f0f0"
+
                     st.markdown(f"""
                     <div style="background-color: {bg_color}; padding: 8px; border-radius: 5px; margin: 5px 0;">
                         <div style="font-size: 0.8em; font-weight: bold;">{color} 관련도: {relevance}</div>
                         <div style="font-size: 0.75em; color: #666;">🔑 {page_response}</div>
                     </div>""", unsafe_allow_html=True)
-                
-                if p-1 < len(st.session_state.pdf_images):
-                    st.image(st.session_state.pdf_images[p-1], use_column_width=True)
+
+                if p - 1 < len(st.session_state.pdf_images):
+                    st.image(st.session_state.pdf_images[p - 1], use_column_width=True)
 
     st.session_state.selected_pages = selected_pages
 
@@ -277,6 +318,6 @@ if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.markdown(answer)
 
     if st.button("새로운 분석 시작"):
-        for key in list(st.session_state.keys()): del st.session_state[key]
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
-

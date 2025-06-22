@@ -214,6 +214,8 @@ def load_example_pdf():
         return None
 
 with st.form("upload_form"):
+    st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
+
     # 예시 PDF 불러오기 / 제거 버튼 (왼쪽 정렬)
     if st.session_state.get('example_pdf_loaded', False):
         # 예시 PDF가 로드된 경우: 제거 버튼만 표시

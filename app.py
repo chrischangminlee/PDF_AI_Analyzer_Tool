@@ -201,23 +201,69 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt):
 # 4. 1단계: 업로드 & 질문 입력
 # ───────────────────────────────────────────────
 st.header("1단계: PDF 업로드 및 질문 입력")
+
+# 예시 PDF 로드 기능
+def load_example_pdf():
+    """예시 PDF 파일을 로드하여 세션 상태에 저장"""
+    try:
+        example_pdf_path = "Filereference/K-ICS 해설서.pdf"
+        with open(example_pdf_path, "rb") as f:
+            return f.read()
+    except Exception as e:
+        st.error(f"예시 PDF 로드 실패: {e}")
+        return None
+
+# 예시 PDF 버튼
+col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+with col_btn2:
+    if st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True):
+        example_pdf_bytes = load_example_pdf()
+        if example_pdf_bytes:
+            st.session_state['example_pdf_loaded'] = True
+            st.session_state['example_pdf_bytes'] = example_pdf_bytes
+            st.success("✅ 예시 PDF가 로드되었습니다!")
+            st.rerun()
+
 with st.form("upload_form"):
     col1, col2 = st.columns(2)
     with col1:
-        pdf_file = st.file_uploader("PDF 파일을 선택하세요", type=['pdf'])
+        # 예시 PDF가 로드된 경우 표시
+        if st.session_state.get('example_pdf_loaded', False):
+            st.info("📄 **예시 PDF (K-ICS 해설서.pdf)** 가 선택되었습니다.")
+            pdf_file = None  # file_uploader는 비활성화
+        else:
+            pdf_file = st.file_uploader("PDF 파일을 선택하세요", type=['pdf'])
     with col2:
         user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
     submitted = st.form_submit_button("PDF 분석 시작", type="primary")
 
-if submitted and pdf_file and user_prompt_input:
-    with st.spinner("PDF 업로드 및 AI 분석 중..."):
+# 예시 PDF 초기화 버튼 (작은 버튼)
+if st.session_state.get('example_pdf_loaded', False):
+    if st.button("🗑️ 예시 PDF 제거", key="clear_example"):
+        st.session_state['example_pdf_loaded'] = False
+        if 'example_pdf_bytes' in st.session_state:
+            del st.session_state['example_pdf_bytes']
+        st.rerun()
+
+if submitted and user_prompt_input:
+    # PDF 파일 확인 (업로드된 파일 또는 예시 PDF)
+    if st.session_state.get('example_pdf_loaded', False):
+        pdf_bytes_to_process = st.session_state['example_pdf_bytes']
+        pdf_source = "예시 PDF (K-ICS 해설서.pdf)"
+    elif pdf_file:
+        pdf_bytes_to_process = pdf_file.read()
+        pdf_source = pdf_file.name
+    else:
+        st.error("PDF 파일을 선택하거나 예시 PDF를 로드해주세요.")
+        st.stop()
+
+    with st.spinner(f"PDF 업로드 및 AI 분석 중... ({pdf_source})"):
         # 세션 초기화
         for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
             st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
 
         # 원본 PDF → 페이지 번호 삽입 → 세션 저장
-        original_bytes = pdf_file.read()
-        numbered_bytes = annotate_pdf_with_page_numbers(original_bytes)   # ★★★
+        numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)   # ★★★
         st.session_state.original_pdf_bytes = numbered_bytes             # ★★★
         st.session_state.user_prompt = user_prompt_input
 

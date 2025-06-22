@@ -215,11 +215,18 @@ def load_example_pdf():
 
 with st.form("upload_form"):
     # 예시 PDF 불러오기 / 제거 버튼 (왼쪽 정렬)
-    col1, col2, spacer = st.columns([2, 2, 6])
-    with col1:
-        load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True)
-    with col2:
-        clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary", use_container_width=True)
+    if st.session_state.get('example_pdf_loaded', False):
+        # 예시 PDF가 로드된 경우: 제거 버튼만 표시
+        col1, spacer = st.columns([2, 8])
+        with col1:
+            clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary", use_container_width=True)
+        load_clicked = False  # 로드 버튼은 클릭되지 않음
+    else:
+        # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
+        col1, spacer = st.columns([2, 8])
+        with col1:
+            load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True)
+        clear_clicked = False  # 제거 버튼은 클릭되지 않음
 
     # 버튼 처리 로직
     if load_clicked:

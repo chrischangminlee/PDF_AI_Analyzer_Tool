@@ -225,6 +225,16 @@ with col_btn2:
             st.rerun()
 
 with st.form("upload_form"):
+    # 예시 PDF 버튼
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+    with col_btn2:
+        if st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True):
+            example_pdf_bytes = load_example_pdf()
+            if example_pdf_bytes:
+                st.session_state['example_pdf_loaded'] = True
+                st.session_state['example_pdf_bytes'] = example_pdf_bytes
+                st.success("✅ 예시 PDF가 로드되었습니다!")
+                st.rerun()
     col1, col2 = st.columns(2)
     with col1:
         # 예시 PDF가 로드된 경우 표시

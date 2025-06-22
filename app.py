@@ -45,49 +45,6 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🔧 PDF 텍스트 분석 도구")
 st.sidebar.markdown("<small>페이지별 텍스트 추출 상태 확인용 (임시)</small>", unsafe_allow_html=True)
 
-debug_pdf = st.sidebar.file_uploader("PDF 파일 선택", type=['pdf'], key="debug_pdf")
-
-if debug_pdf:
-    if st.sidebar.button("텍스트 분석 실행", key="debug_analyze"):
-        with st.sidebar.expander("📋 분석 결과", expanded=True):
-            try:
-                reader = PdfReader(debug_pdf)
-                blank_count = 0
-                
-                st.write(f"**총 페이지 수:** {len(reader.pages)}")
-                st.write("**페이지별 텍스트 상태:**")
-                
-                # 결과를 담을 리스트
-                results = []
-                
-                for idx, page in enumerate(reader.pages, start=1):
-                    txt = page.extract_text() or ""
-                    if len(txt.strip()) == 0:
-                        blank_count += 1
-                        results.append(f"{idx:>3}: <NO TEXT>")
-                    else:
-                        # 텍스트가 있는 경우 첫 40자 미리보기
-                        preview = txt.strip().replace('\n', ' ')[:40]
-                        if len(txt.strip()) > 40:
-                            preview += "..."
-                        results.append(f"{idx:>3}: {preview}")
-                
-                # 결과를 스크롤 가능한 영역에 표시
-                result_text = "\n".join(results)
-                st.code(result_text, language="text")
-                
-                st.write(f"**📊 요약:**")
-                st.write(f"- 텍스트 있는 페이지: {len(reader.pages) - blank_count}개")
-                st.write(f"- 텍스트 없는 페이지: {blank_count}개")
-                
-                if blank_count > 0:
-                    st.warning(f"⚠️ {blank_count}개 페이지에서 텍스트를 추출할 수 없습니다.")
-                else:
-                    st.success("✅ 모든 페이지에서 텍스트가 정상적으로 추출되었습니다.")
-                    
-            except Exception as e:
-                st.error(f"❌ 분석 중 오류 발생: {str(e)}")
-
 st.title("이창민의 PDF AI 세부 분석 Tool")
 st.write(
     "본 PDF AI 세부 분석 Tool은 단계적 AI활용과 Human Input을 통해 AI 환각효과를 최소화 하고자 합니다.  \n"

@@ -252,14 +252,6 @@ with st.form("upload_form"):
     submitted = st.form_submit_button("PDF 분석 시작", type="primary")
 
 
-# 예시 PDF 초기화 버튼 (작은 버튼)
-if st.session_state.get('example_pdf_loaded', False):
-    if st.button("🗑️ 예시 PDF 제거", key="clear_example"):
-        st.session_state['example_pdf_loaded'] = False
-        if 'example_pdf_bytes' in st.session_state:
-            del st.session_state['example_pdf_bytes']
-        st.rerun()
-
 if submitted and user_prompt_input:
     # PDF 파일 확인 (업로드된 파일 또는 예시 PDF)
     if st.session_state.get('example_pdf_loaded', False):
@@ -312,6 +304,7 @@ if submitted and user_prompt_input:
 if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.header("2단계: 관련 페이지 확인 & 선택")
     st.write(f"**AI 추천 페이지 수:** {len(st.session_state.relevant_pages)}개")
+    st.write("선별된 페이지위에 마우스를 갖다대시면 확대해서 내용을 확인할 수 있어요.")
 
     top_msg, top_btn = st.empty(), st.empty()
     selected_pages = []

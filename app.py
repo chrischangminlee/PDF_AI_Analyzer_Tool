@@ -214,29 +214,41 @@ def load_example_pdf():
         return None
 
 with st.form("upload_form"):
-    # 예시 PDF 버튼 먼저
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
-    with col_btn2:
-        if st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True):
-            example_pdf_bytes = load_example_pdf()
-            if example_pdf_bytes:
-                st.session_state['example_pdf_loaded'] = True
-                st.session_state['example_pdf_bytes'] = example_pdf_bytes
-                st.success("✅ 예시 PDF가 로드되었습니다!")
-                st.rerun()
-
-    # 그 다음 PDF 업로드 & 프롬프트
-    col1, col2 = st.columns(2)
+    # 예시 PDF 불러오기 / 제거 버튼 (왼쪽 정렬)
+    col1, col2, spacer = st.columns([2, 2, 6])
     with col1:
+        load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary", use_container_width=True)
+    with col2:
+        clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary", use_container_width=True)
+
+    # 버튼 처리 로직
+    if load_clicked:
+        example_pdf_bytes = load_example_pdf()
+        if example_pdf_bytes:
+            st.session_state['example_pdf_loaded'] = True
+            st.session_state['example_pdf_bytes'] = example_pdf_bytes
+            st.success("✅ 예시 PDF가 로드되었습니다!")
+            st.rerun()
+
+    if clear_clicked:
+        st.session_state['example_pdf_loaded'] = False
+        if 'example_pdf_bytes' in st.session_state:
+            del st.session_state['example_pdf_bytes']
+        st.rerun()
+
+    # PDF 업로드 및 질문 입력
+    col3, col4 = st.columns(2)
+    with col3:
         if st.session_state.get('example_pdf_loaded', False):
             st.info("📄 **예시 PDF (K-ICS 해설서.pdf)** 가 선택되었습니다.")
             pdf_file = None
         else:
             pdf_file = st.file_uploader("PDF 파일을 선택하세요", type=['pdf'])
-    with col2:
+
+    with col4:
         user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
 
-    # 분석 버튼
+    # 분석 시작 버튼
     submitted = st.form_submit_button("PDF 분석 시작", type="primary")
 
 

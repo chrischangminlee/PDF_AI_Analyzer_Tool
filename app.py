@@ -53,7 +53,7 @@ st.title("이창민의 PDF AI 세부 분석 Tool")
 st.write(
     "본 PDF AI 세부 분석 Tool은 단계적 AI활용과 Human Input을 통해 AI 환각효과를 최소화 하고자 합니다.  \n"
     "- **1단계** PDF 업로드 + 분석 요청사항 입력  \n"
-    "- **2단계** 관련 페이지 AI 추천 & 페이지 별 답변 참고하여 직접 선택  \n"
+    "- **2단계** 관련 페이지 AI 추천 & 페이지 별 답변 참고하여 최종분석 대상 페이지 직접 선택 \n"
     "- **3단계** 선택된 페이지들 종합하여 최종 분석"
 )
 
@@ -311,7 +311,7 @@ if submitted and user_prompt_input:
 if st.session_state.step >= 2 and st.session_state.relevant_pages:
     st.header("2단계: 관련 페이지 확인 & 선택")
     st.write(f"**AI 추천 페이지 수:** {len(st.session_state.relevant_pages)}개")
-    st.write("선별된 페이지위에 마우스를 갖다대시면 확대해서 내용을 확인할 수 있어요.")
+    st.write("선별된 페이지위에 마우스를 올리면 나타나는 확대 버튼으로 내용을 확인할 수 있어요.")
 
     top_msg, top_btn = st.empty(), st.empty()
     selected_pages = []
@@ -368,7 +368,7 @@ if st.session_state.step >= 2 and st.session_state.relevant_pages:
 # ───────────────────────────────────────────────
 if st.session_state.step >= 3 and st.session_state.selected_pages:
     st.header("3단계: 최종 분석 결과")
-    with st.spinner("선택한 페이지만으로 AI가 답변 생성 중..."):
+    with st.spinner("선별된 페이지로 PDF 최종 AI 분석 중..."):
         answer = generate_final_answer_from_selected_pages(
             st.session_state.selected_pages,
             st.session_state.user_prompt

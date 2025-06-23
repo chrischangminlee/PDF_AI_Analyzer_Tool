@@ -232,14 +232,18 @@ def load_example_pdf():
 with st.form("upload_form"):
     st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
 
+    # 분석 시작 버튼
+    submitted = st.form_submit_button("PDF 분석 시작", type="primary")
+
+    # 예시 PDF 버튼들을 폼 밖으로 이동 (일반 버튼으로 변경)
     # 예시 PDF 불러오기 / 제거 버튼
     if st.session_state.get('example_pdf_loaded', False):
         # 예시 PDF가 로드된 경우: 제거 버튼만 표시
-        clear_clicked = st.button("🗑️ 예시 PDF 제거", type="secondary")
+        clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary")
         load_clicked = False  # 로드 버튼은 클릭되지 않음
     else:
         # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
-        load_clicked = st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary")
+        load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary")
         clear_clicked = False  # 제거 버튼은 클릭되지 않음
 
     # 버튼 처리 로직
@@ -269,8 +273,7 @@ with st.form("upload_form"):
     with col4:
         user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
 
-    # 분석 시작 버튼
-    submitted = st.form_submit_button("PDF 분석 시작", type="primary")
+    
 
 
 if submitted and user_prompt_input:

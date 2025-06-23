@@ -153,8 +153,8 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
         - 외부 지식·다른 페이지 내용은 절대 사용하지 않습니다.
 
         4. **결과 생성**  
-        - 아래 **“응답 형식”**으로 N페이지 결과 1줄을 작성합니다.  
-        - 관련도 **‘하’이거나 무관**할 경우, **출력하지 않습니다**.
+        - 아래 **"응답 형식"**으로 N페이지 결과 1줄을 작성합니다.  
+        - 관련도 **'하'이거나 무관**할 경우, **출력하지 않습니다**.
 
         5. **메모리 리셋**  
         - N페이지 작업 종료 즉시, 그 내용과 메타데이터를 **완전 삭제**하고 다음 페이지로 이동합니다.
@@ -232,31 +232,6 @@ def load_example_pdf():
 with st.form("upload_form"):
     st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
 
-    # 예시 PDF 불러오기 / 제거 버튼
-    if st.session_state.get('example_pdf_loaded', False):
-        # 예시 PDF가 로드된 경우: 제거 버튼만 표시
-        clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary")
-        load_clicked = False  # 로드 버튼은 클릭되지 않음
-    else:
-        # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
-        load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary")
-        clear_clicked = False  # 제거 버튼은 클릭되지 않음
-
-    # 버튼 처리 로직
-    if load_clicked:
-        example_pdf_bytes = load_example_pdf()
-        if example_pdf_bytes:
-            st.session_state['example_pdf_loaded'] = True
-            st.session_state['example_pdf_bytes'] = example_pdf_bytes
-            st.success("✅ 예시 PDF가 로드되었습니다!")
-            st.rerun()
-
-    if clear_clicked:
-        st.session_state['example_pdf_loaded'] = False
-        if 'example_pdf_bytes' in st.session_state:
-            del st.session_state['example_pdf_bytes']
-        st.rerun()
-
     # PDF 업로드 및 질문 입력
     col3, col4 = st.columns(2)
     with col3:
@@ -269,8 +244,26 @@ with st.form("upload_form"):
     with col4:
         user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
 
-    # 분석 시작 버튼
+    # 분석 시작 버튼 (엔터키의 기본 타겟이 되도록 첫 번째로 배치)
     submitted = st.form_submit_button("PDF 분석 시작", type="primary")
+
+# 예시 PDF 버튼들을 폼 밖으로 이동 (일반 버튼으로 변경)
+if st.session_state.get('example_pdf_loaded', False):
+    # 예시 PDF가 로드된 경우: 제거 버튼만 표시
+    if st.button("🗑️ 예시 PDF 제거", type="secondary"):
+        st.session_state['example_pdf_loaded'] = False
+        if 'example_pdf_bytes' in st.session_state:
+            del st.session_state['example_pdf_bytes']
+        st.rerun()
+else:
+    # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
+    if st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary"):
+        example_pdf_bytes = load_example_pdf()
+        if example_pdf_bytes:
+            st.session_state['example_pdf_loaded'] = True
+            st.session_state['example_pdf_bytes'] = example_pdf_bytes
+            st.success("✅ 예시 PDF가 로드되었습니다!")
+            st.rerun()
 
 
 if submitted and user_prompt_input:

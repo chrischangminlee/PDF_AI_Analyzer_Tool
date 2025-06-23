@@ -232,6 +232,41 @@ def load_example_pdf():
 # 예시 PDF 불러오기 / 제거 버튼 (form 밖에서 처리)
 st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
 
+col1, col2 = st.columns(2)
+with col1:
+    if st.session_state.get('example_pdf_loaded', False):
+        # 예시 PDF가 로드된 경우: 제거 버튼만 표시
+        if st.button("🗑️ 예시 PDF 제거", type="secondary"):
+            st.session_state['example_pdf_loaded'] = False
+            if 'example_pdf_bytes' in st.session_state:
+                del st.session_state['example_pdf_bytes']
+            st.rerun()
+    else:
+        # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
+        if st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary"):
+            example_pdf_bytes = load_example_pdf()
+            if example_pdf_bytes:
+                st.session_state['example_pdf_loaded'] = True
+                st.session_state['example_pdf_bytes'] = example_pdf_bytes
+                st.success("✅ 예시 PDF가 로드되었습니다!")
+                st.rerun()
+
+with st.form("upload_form"):
+    # PDF 업로드 및 질문 입력
+    col3, col4 = st.columns(2)
+    with col3:
+        if st.session_state.get('example_pdf_loaded', False):
+            st.info("📄 **예시 PDF (K-ICS 해설서.pdf)** 가 선택되었습니다.")
+            pdf_file = None
+        else:
+            pdf_file = st.file_uploader("PDF 파일을 선택하세요", type=['pdf'])
+
+    with col4:
+        user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
+
+    # 분석 시작 버튼 (form 안의 유일한 submit button)
+    submitted = st.form_submit_button("PDF 분석 시작", type="primary")
+
 
 if submitted and user_prompt_input:
     # PDF 파일 확인 (업로드된 파일 또는 예시 PDF)

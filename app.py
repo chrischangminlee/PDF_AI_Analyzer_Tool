@@ -235,11 +235,11 @@ with st.form("upload_form"):
     # 예시 PDF 불러오기 / 제거 버튼
     if st.session_state.get('example_pdf_loaded', False):
         # 예시 PDF가 로드된 경우: 제거 버튼만 표시
-        clear_clicked = st.form_submit_button("🗑️ 예시 PDF 제거", type="secondary")
+        clear_clicked = st._button("🗑️ 예시 PDF 제거", type="secondary")
         load_clicked = False  # 로드 버튼은 클릭되지 않음
     else:
         # 예시 PDF가 로드되지 않은 경우: 불러오기 버튼만 표시
-        load_clicked = st.form_submit_button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary")
+        load_clicked = st._button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary")
         clear_clicked = False  # 제거 버튼은 클릭되지 않음
 
     # 버튼 처리 로직

@@ -232,6 +232,11 @@ def load_example_pdf():
 # 예시 PDF 불러오기 / 제거 버튼 (form 밖에서 처리)
 st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
 
+# submitted 변수 초기화 (안전장치)
+submitted = False
+pdf_file = None
+user_prompt_input = ""
+
 col1, col2 = st.columns(2)
 with col1:
     if st.session_state.get('example_pdf_loaded', False):

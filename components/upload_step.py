@@ -73,20 +73,18 @@ def run_upload_step():
         progress_placeholder = st.empty()
         
         try:
-            # 1단계: 세션 초기화
-            progress_placeholder.info("🔄 **1/5단계:** 세션 초기화 중...")
-            # 세션 초기화
+            # 세션 초기화 (진행 상황 표시 없이)
             for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
                 st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
             st.session_state.user_prompt = user_prompt_input
 
-            # 2단계: PDF 페이지 번호 삽입
-            progress_placeholder.info("📝 **2/5단계:** PDF에 페이지 번호 삽입 중...")
+            # 1단계: PDF 페이지 번호 삽입
+            progress_placeholder.info("📝 **1/4단계:** PDF에 페이지 번호 삽입 중...")
             numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)
             st.session_state.original_pdf_bytes = numbered_bytes
 
-            # 3단계: Gemini에 PDF 업로드
-            progress_placeholder.info("☁️ **3/5단계:** Gemini AI에 PDF 업로드 중...")
+            # 2단계: Gemini에 PDF 업로드
+            progress_placeholder.info("☁️ **2/4단계:** Gemini AI에 PDF 업로드 중...")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                 tmp.write(numbered_bytes)
                 tmp_path = tmp.name
@@ -95,15 +93,15 @@ def run_upload_step():
             finally:
                 os.unlink(tmp_path)
 
-            # 4단계: PDF를 이미지로 변환
-            progress_placeholder.info("🖼️ **4/5단계:** PDF를 이미지로 변환 중...")
+            # 3단계: PDF를 이미지로 변환
+            progress_placeholder.info("🖼️ **3/4단계:** PDF를 이미지로 변환 중...")
             st.session_state.pdf_images = convert_pdf_to_images(numbered_bytes)
             
             if not st.session_state.pdf_images:
                 st.warning("⚠️ PDF 이미지 변환에 실패했지만 분석은 계속 진행됩니다.")
 
-            # 5단계: AI 분석 실행
-            progress_placeholder.info("🤖 **5/5단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
+            # 4단계: AI 분석 실행
+            progress_placeholder.info("🤖 **4/4단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
             pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
             
             if not pages_response.strip():

@@ -69,35 +69,63 @@ def run_upload_step():
             st.error("PDF 파일을 선택하거나 예시 PDF를 로드해주세요.")
             st.stop()
 
-        with st.spinner(f"PDF 업로드 및 AI 분석 중... ({pdf_source})"):
+        # 진행 상황 표시용 placeholder 생성
+        progress_placeholder = st.empty()
+        
+        try:
+            # 1단계: 세션 초기화
+            progress_placeholder.info("🔄 **1/5단계:** 세션 초기화 중...")
             # 세션 초기화
             for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
                 st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
-
-            # 원본 PDF → 페이지 번호 삽입 → 세션 저장
-            numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)   # ★★★
-            st.session_state.original_pdf_bytes = numbered_bytes             # ★★★
             st.session_state.user_prompt = user_prompt_input
 
-            # Gemini 업로드
+            # 2단계: PDF 페이지 번호 삽입
+            progress_placeholder.info("📝 **2/5단계:** PDF에 페이지 번호 삽입 중...")
+            numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)
+            st.session_state.original_pdf_bytes = numbered_bytes
+
+            # 3단계: Gemini에 PDF 업로드
+            progress_placeholder.info("☁️ **3/5단계:** Gemini AI에 PDF 업로드 중...")
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(numbered_bytes)                                    # ★★★
+                tmp.write(numbered_bytes)
                 tmp_path = tmp.name
             try:
                 uploaded_file = upload_pdf_to_gemini(tmp_path)
             finally:
                 os.unlink(tmp_path)
 
-            # 이미지 변환 (페이지 번호가 찍힌 상태)
-            st.session_state.pdf_images = convert_pdf_to_images(numbered_bytes)   # ★★★
+            # 4단계: PDF를 이미지로 변환
+            progress_placeholder.info("🖼️ **4/5단계:** PDF를 이미지로 변환 중...")
+            st.session_state.pdf_images = convert_pdf_to_images(numbered_bytes)
+            
+            if not st.session_state.pdf_images:
+                st.warning("⚠️ PDF 이미지 변환에 실패했지만 분석은 계속 진행됩니다.")
 
-            # 관련 페이지 탐색
+            # 5단계: AI 분석 실행
+            progress_placeholder.info("🤖 **5/5단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
             pages_response = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input)
+            
+            if not pages_response.strip():
+                st.error("❌ AI 분석 결과가 비어있습니다. 다시 시도해주세요.")
+                return
+                
             pages, page_info = parse_page_info(pages_response)
-            total_pages = len(st.session_state.pdf_images)
+            total_pages = len(st.session_state.pdf_images) if st.session_state.pdf_images else 1
             st.session_state.relevant_pages = list(dict.fromkeys([p for p in pages if 1 <= p <= total_pages]))
             st.session_state.page_info = page_info
 
-            st.session_state.step = 2
-            st.success("AI가 관련 페이지를 찾았습니다!")
-            st.rerun()
+            # 완료
+            progress_placeholder.empty()
+            
+            if st.session_state.relevant_pages:
+                st.session_state.step = 2
+                st.success(f"✅ **분석 완료!** AI가 {len(st.session_state.relevant_pages)}개의 관련 페이지를 찾았습니다!")
+                st.rerun()
+            else:
+                st.warning("⚠️ 질문과 관련된 페이지를 찾지 못했습니다. 다른 질문으로 시도해보세요.")
+
+        except Exception as e:
+            progress_placeholder.empty()
+            st.error(f"❌ **오류 발생:** {str(e)}")
+            st.error("위 오류가 지속되면 페이지를 새로고침하고 다시 시도해주세요.")

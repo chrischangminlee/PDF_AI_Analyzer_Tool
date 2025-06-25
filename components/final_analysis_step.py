@@ -8,7 +8,8 @@ def run_final_analysis_step():
         with st.spinner("선별된 페이지로 PDF 최종 AI 분석 중..."):
             answer = generate_final_answer_from_selected_pages(
                 st.session_state.selected_pages,
-                st.session_state.user_prompt
+                st.session_state.user_prompt,
+                st.session_state.original_pdf_bytes
             )
 
         st.subheader("📋 분석 결과")

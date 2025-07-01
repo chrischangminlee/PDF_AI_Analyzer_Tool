@@ -1,4 +1,4 @@
-# gemini_service.py - 개선된 버전
+# gemini_service.py - 페이지 독립성 강화 버전
 
 import io, os, tempfile, json
 import streamlit as st
@@ -32,8 +32,7 @@ def parse_page_info(gemini_response):
                 pages.append(page_num)
                 page_info[page_num] = {
                     'page_response': item.get('summary', ''),
-                    'relevance': item.get('relevance', '하'),
-                    'confidence': item.get('confidence', 0.5)
+                    'relevance': item.get('relevance', '하')
                 }
                 
     except (json.JSONDecodeError, KeyError) as e:
@@ -63,85 +62,59 @@ def parse_page_info_legacy(gemini_response):
     return pages, page_info
 
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt):
-    """개선된 페이지 찾기 - 더 명확한 지시사항과 JSON 응답"""
+    """개선된 페이지 찾기 - 페이지 독립성 극대화"""
     try:
         prompt = f"""
-        당신은 PDF 문서의 각 페이지를 독립적으로 분석하는 전문가입니다.
-        
-        **중요**: PDF의 좌측 상단에 표시된 물리적 페이지 번호를 반드시 사용하세요.
-        
+        당신은 PDF 문서의 각 페이지를 완전히 독립적으로 분석하는 AI입니다.
+
+        ⚠️ 극도로 중요한 원칙:
+        1. **절대적 페이지 격리**: 각 페이지를 분석할 때, 그 페이지 외의 모든 정보를 완전히 무시하고 잊어버리세요.
+        2. **물리적 페이지 번호만 사용**: PDF 좌측 상단에 인쇄된 번호만을 사용하세요.
+        3. **컨텍스트 전파 금지**: 이전 페이지의 내용이 다음 페이지 분석에 절대 영향을 주어서는 안 됩니다.
+        4. **각 페이지는 독립된 문서**: 마치 각 페이지가 완전히 별개의 PDF인 것처럼 취급하세요.
+
         ## 사용자 질문
         {user_prompt}
-        
-        ## 분석 절차
-        1. PDF의 각 페이지를 순차적으로 검토합니다
-        2. 각 페이지의 좌측 상단에 표시된 번호를 확인합니다
-        3. 해당 페이지의 내용이 사용자 질문과 얼마나 관련이 있는지 평가합니다
-        4. 관련도가 '중' 이상인 페이지만 결과에 포함합니다
-        
-        ## 관련도 기준
-        - **상**: 질문에 대한 직접적인 답변이나 핵심 정보 포함
-        - **중**: 질문과 관련된 배경 정보나 부가 설명 포함
-        - **하**: 관련성이 낮거나 없음
-        
+
+        ## 분석 프로세스 (각 페이지마다 반복)
+        1. 현재 페이지 N의 좌측 상단 번호를 확인
+        2. **오직 페이지 N의 내용만** 읽고 분석
+        3. 페이지 N의 내용이 사용자 질문과 관련있는지 판단
+        4. 관련이 있다면, **페이지 N에서 직접 추출한 핵심 내용**을 20자 이내로 요약
+        5. 페이지 N 분석 완료 후, 그 내용을 **완전히 삭제**하고 다음 페이지로 이동
+
+        ## 관련도 판단 기준
+        - **상**: 해당 페이지가 질문에 대한 직접적인 답변 포함
+        - **중**: 해당 페이지가 질문과 관련된 배경 정보 포함
+        - **하**: 관련성 없음 (결과에서 제외)
+
         ## 응답 형식
-        다음 JSON 형식으로 응답하세요:
+        관련도가 '상' 또는 '중'인 페이지만 포함하여 최대 10개까지 JSON 형식으로 응답:
+        
         ```json
         {{
             "pages": [
                 {{
-                    "page_number": 10,
-                    "summary": "요구자본의 정의와 계산 방법 설명",
-                    "relevance": "상",
-                    "confidence": 0.9
-                }},
-                {{
-                    "page_number": 15,
-                    "summary": "관련 규제 요건 설명",
-                    "relevance": "중",
-                    "confidence": 0.7
+                    "page_number": [페이지 좌측 상단의 물리적 번호],
+                    "summary": "[해당 페이지에서 직접 추출한 핵심 내용]",
+                    "relevance": "[상/중]"
                 }}
             ]
         }}
         ```
-        
-        - page_number: PDF 좌측 상단의 물리적 페이지 번호
-        - summary: 해당 페이지의 핵심 내용 요약 (20자 이내)
-        - relevance: 관련도 (상/중/하)
-        - confidence: 신뢰도 (0.0~1.0)
-        
-        최대 10개의 관련 페이지만 포함하세요.
+
+        ⚠️ 경고: summary는 반드시 해당 페이지의 실제 내용을 반영해야 하며, 다른 페이지의 정보가 섞여서는 안 됩니다.
         """
         
         model = genai.GenerativeModel('gemini-2.0-flash')
-        resp = model.generate_content([uploaded_file, prompt])
-        return resp.text.strip()
+        response = model.generate_content([uploaded_file, prompt])
+        return response.text.strip()
     except Exception as e:
         st.error(f"Gemini 호출 오류: {e}")
         return ""
 
-def verify_page_content(uploaded_file, page_number, expected_content):
-    """특정 페이지의 내용을 검증하는 함수"""
-    try:
-        prompt = f"""
-        PDF의 {page_number}페이지(좌측 상단 번호 기준)를 확인하고, 
-        다음 내용이 실제로 포함되어 있는지 검증하세요:
-        
-        예상 내용: {expected_content}
-        
-        응답 형식:
-        - 일치: True/False
-        - 실제 내용: (페이지의 실제 핵심 내용 요약)
-        """
-        
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        resp = model.generate_content([uploaded_file, prompt])
-        return resp.text.strip()
-    except Exception as e:
-        return f"검증 실패: {e}"
-
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt, original_pdf_bytes):
-    """개선된 최종 답변 생성 - 페이지 번호 명시"""
+    """개선된 최종 답변 생성"""
     if not selected_pages:
         return "선택된 페이지가 없습니다."
 
@@ -190,43 +163,3 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt, origi
     model = genai.GenerativeModel("gemini-2.0-flash")
     resp = model.generate_content([uploaded_sel, prompt])
     return resp.text
-
-# 추가 유틸리티 함수들
-
-def batch_analyze_pages(uploaded_file, user_prompt, start_page=1, end_page=10):
-    """페이지를 배치로 분석하는 함수"""
-    try:
-        prompt = f"""
-        PDF의 {start_page}페이지부터 {end_page}페이지까지 분석하세요.
-        각 페이지의 좌측 상단 번호를 확인하고, 다음 질문과의 관련성을 평가하세요.
-        
-        질문: {user_prompt}
-        
-        JSON 형식으로 각 페이지의 관련성을 보고하세요.
-        관련성이 낮은 페이지는 제외하세요.
-        """
-        
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        resp = model.generate_content([uploaded_file, prompt])
-        return resp.text.strip()
-    except Exception as e:
-        return f"배치 분석 실패: {e}"
-
-def extract_page_metadata(pdf_bytes):
-    """PDF에서 페이지별 메타데이터 추출"""
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    metadata = {}
-    
-    for idx, page in enumerate(reader.pages):
-        page_num = idx + 1
-        text = page.extract_text()
-        
-        # 페이지 특성 분석
-        metadata[page_num] = {
-            'text_length': len(text),
-            'has_images': '/XObject' in page.get('/Resources', {}).get('/ProcSet', []),
-            'has_tables': '|' in text or '\t' in text,  # 간단한 테이블 감지
-            'first_100_chars': text[:100].strip()
-        }
-    
-    return metadata

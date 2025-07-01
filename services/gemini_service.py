@@ -1,10 +1,54 @@
 # gemini_service.py - 배치 분석 및 검증 기능 추가
 
-import io, os, tempfile, json
+import io, os, tempfile, json, time
 import streamlit as st
 from PyPDF2 import PdfReader, PdfWriter
 import google.generativeai as genai
 from .pdf_service import upload_pdf_to_gemini
+
+def call_gemini_with_retry(model, content, max_retries=3, base_delay=2):
+    """Gemini API 호출을 재시도 로직과 함께 실행"""
+    for attempt in range(max_retries):
+        try:
+            # API 호출 전 대기 (rate limiting)
+            if attempt > 0:
+                delay = base_delay * (2 ** attempt)  # 지수 백오프
+                st.info(f"⏳ API 호출 대기 중... ({delay}초)")
+                time.sleep(delay)
+            
+            response = model.generate_content(content)
+            return response.text.strip()
+            
+        except Exception as e:
+            error_msg = str(e)
+            
+            if "429" in error_msg or "quota" in error_msg.lower():
+                # 할당량 초과 시
+                if attempt < max_retries - 1:
+                    if "retry_delay" in error_msg:
+                        # 서버에서 권장하는 대기 시간 추출
+                        try:
+                            delay = 45  # 기본 45초
+                            st.warning(f"⚠️ API 할당량 초과. {delay}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                            time.sleep(delay)
+                        except:
+                            st.warning(f"⚠️ API 할당량 초과. 60초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                            time.sleep(60)
+                    else:
+                        st.warning(f"⚠️ API 할당량 초과. 30초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                        time.sleep(30)
+                else:
+                    st.error("❌ API 할당량이 완전히 소진되었습니다. 나중에 다시 시도해주세요.")
+                    raise Exception("API 할당량 초과")
+            else:
+                # 다른 오류
+                if attempt < max_retries - 1:
+                    st.warning(f"⚠️ API 호출 실패. 5초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                    time.sleep(5)
+                else:
+                    raise e
+    
+    raise Exception("최대 재시도 횟수 초과")
 
 def parse_page_info(gemini_response):
     """개선된 페이지 정보 파싱 - JSON 형식 사용"""
@@ -64,7 +108,7 @@ def parse_page_info_legacy(gemini_response):
                 continue
     return pages, page_info
 
-def split_pdf_for_batch_analysis(pdf_bytes, batch_size=5):
+def split_pdf_for_batch_analysis(pdf_bytes, batch_size=10):
     """PDF를 배치로 나누어 처리하기 위한 함수"""
     reader = PdfReader(io.BytesIO(pdf_bytes))
     total_pages = len(reader.pages)
@@ -145,8 +189,7 @@ def analyze_pdf_batch(batch_file, user_prompt, batch_info):
         """
         
         model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([batch_file, prompt])
-        return response.text.strip()
+        return call_gemini_with_retry(model, [batch_file, prompt])
     except Exception as e:
         return f"배치 분석 오류: {e}"
 
@@ -157,7 +200,7 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
     
     if pdf_bytes:
         # PDF를 배치로 나누어 분석
-        batches = split_pdf_for_batch_analysis(pdf_bytes, batch_size=5)
+        batches = split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
         
         progress_bar = st.progress(0)
         for idx, batch in enumerate(batches):
@@ -166,6 +209,11 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
             try:
                 # 배치 파일 업로드
                 batch_file = upload_pdf_to_gemini(batch['path'])
+                
+                # 배치간 대기 시간 추가 (rate limiting)
+                if idx > 0:
+                    st.info(f"⏳ 다음 배치 처리를 위해 3초 대기...")
+                    time.sleep(3)
                 
                 # 배치 분석
                 batch_response = analyze_pdf_batch(batch_file, user_prompt, batch)
@@ -246,8 +294,7 @@ def analyze_full_pdf(uploaded_file, user_prompt):
         """
         
         model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content([uploaded_file, prompt])
-        return response.text.strip()
+        return call_gemini_with_retry(model, [uploaded_file, prompt])
     except Exception as e:
         st.error(f"Gemini 호출 오류: {e}")
         return ""
@@ -301,5 +348,4 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt, origi
     """
     
     model = genai.GenerativeModel("gemini-2.0-flash")
-    resp = model.generate_content([uploaded_sel, prompt])
-    return resp.text
+    return call_gemini_with_retry(model, [uploaded_sel, prompt])

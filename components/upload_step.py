@@ -74,8 +74,11 @@ def run_upload_step():
         
         try:
             # 세션 초기화
-            for k in ['relevant_pages', 'page_info', 'selected_pages', 'original_pdf_bytes', 'pdf_images']:
-                st.session_state[k] = [] if isinstance(st.session_state.get(k), list) else {} if isinstance(st.session_state.get(k), dict) else None
+            st.session_state.relevant_pages = []
+            st.session_state.page_info = {}
+            st.session_state.selected_pages = []
+            st.session_state.original_pdf_bytes = None
+            st.session_state.pdf_images = []
             st.session_state.user_prompt = user_prompt_input
 
             # 1단계: PDF 페이지 번호 삽입

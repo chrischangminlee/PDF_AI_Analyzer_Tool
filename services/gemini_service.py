@@ -25,11 +25,19 @@ def parse_page_info(gemini_response):
         for item in data.get("pages", []):
             page_num = item.get("page_number")
             if page_num:
-                pages.append(page_num)
-                page_info[page_num] = {
-                    'page_response': item.get('summary', ''),
-                    'relevance': item.get('relevance', '하')
-                }
+                # page_num이 list인 경우 첫 번째 값만 사용
+                if isinstance(page_num, list):
+                    page_num = page_num[0] if page_num else None
+                if page_num and isinstance(page_num, (int, str)):
+                    try:
+                        page_num = int(page_num)
+                        pages.append(page_num)
+                        page_info[page_num] = {
+                            'page_response': item.get('summary', ''),
+                            'relevance': item.get('relevance', '하')
+                        }
+                    except (ValueError, TypeError):
+                        continue
                 
     except (json.JSONDecodeError, KeyError) as e:
         return parse_page_info_legacy(gemini_response)

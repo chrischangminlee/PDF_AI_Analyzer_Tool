@@ -138,60 +138,58 @@ def split_pdf_for_batch_analysis(pdf_bytes, batch_size=10):
 
 def analyze_pdf_batch(batch_file, user_prompt, batch_info):
     """단일 배치 PDF 분석"""
-    try:
-        prompt = f"""
-        이 PDF는 전체 문서의 {batch_info['start_page']}페이지부터 {batch_info['end_page']}페이지까지만 포함합니다.
-        
-        중요: 각 페이지의 좌측 상단에 표시된 번호를 반드시 확인하고 사용하세요.
-        
-        ## 사용자 질문
-        {user_prompt}
-        
-        ## 엄격한 관련성 판단 기준
-        ⚠️ **매우 중요**: 다음 기준을 엄격히 적용하세요
-        
-        **상 (직접 관련)**: 
-        - 사용자 질문의 핵심 키워드가 페이지에 명시적으로 언급됨
-        - 질문에 대한 직접적인 답변이나 정의가 포함됨
-        - 질문과 정확히 일치하는 주제를 다룸
-        
-        **중 (간접 관련)**:
-        - 질문과 관련된 배경 정보나 맥락이 포함됨
-        - 질문 주제의 상위/하위 개념을 다룸
-        - 질문 해결에 도움이 되는 관련 정보 포함
-        
-        **하 (관련 없음) - 결과에서 제외**:
-        - 질문과 전혀 관련 없는 내용
-        - 단순히 문서의 목차, 서문, 부록 등
-        - 질문 키워드가 우연히 언급되었지만 맥락상 무관한 경우
-        
-        ## 분석 지시사항
-        1. 각 페이지를 독립적으로 분석
-        2. 페이지 좌측 상단 번호 확인
-        3. **관련성이 '상' 또는 '중'인 페이지만** 보고
-        4. 확신이 없으면 제외하세요 (false positive 방지)
-        
-        ## 응답 형식
-        관련성이 높은 페이지만 JSON으로 응답하세요:
-        ```json
-        {{
-            "pages": [
-                {{
-                    "page_number": [좌측 상단의 실제 페이지 번호],
-                    "summary": "[해당 페이지의 핵심 내용 15자 이내]",
-                    "relevance": "[상/중]"
-                }}
-            ]
-        }}
-        ```
-        
-        ⚠️ 관련성이 낮은 페이지는 절대 포함하지 마세요!
-        """
-        
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        return call_gemini_with_retry(model, [batch_file, prompt])
-    except Exception as e:
-        return f"배치 분석 오류: {e}"
+    prompt = f"""
+    이 PDF는 전체 문서의 {batch_info['start_page']}페이지부터 {batch_info['end_page']}페이지까지만 포함합니다.
+    
+    중요: 각 페이지의 좌측 상단에 표시된 번호를 반드시 확인하고 사용하세요.
+    
+    ## 사용자 질문
+    {user_prompt}
+    
+    ## 엄격한 관련성 판단 기준
+    ⚠️ **매우 중요**: 다음 기준을 엄격히 적용하세요
+    
+    **상 (직접 관련)**: 
+    - 사용자 질문의 핵심 키워드가 페이지에 명시적으로 언급됨
+    - 질문에 대한 직접적인 답변이나 정의가 포함됨
+    - 질문과 정확히 일치하는 주제를 다룸
+    
+    **중 (간접 관련)**:
+    - 질문과 관련된 배경 정보나 맥락이 포함됨
+    - 질문 주제의 상위/하위 개념을 다룸
+    - 질문 해결에 도움이 되는 관련 정보 포함
+    
+    **하 (관련 없음) - 결과에서 제외**:
+    - 질문과 전혀 관련 없는 내용
+    - 단순히 문서의 목차, 서문, 부록 등
+    - 질문 키워드가 우연히 언급되었지만 맥락상 무관한 경우
+    
+    ## 분석 지시사항
+    1. 각 페이지를 독립적으로 분석
+    2. 페이지 좌측 상단 번호 확인
+    3. **관련성이 '상' 또는 '중'인 페이지만** 보고
+    4. 확신이 없으면 제외하세요 (false positive 방지)
+    
+    ## 응답 형식
+    관련성이 높은 페이지만 JSON으로 응답하세요:
+    ```json
+    {{
+        "pages": [
+            {{
+                "page_number": [좌측 상단의 실제 페이지 번호],
+                "summary": "[해당 페이지의 핵심 내용 15자 이내]",
+                "relevance": "[상/중]"
+            }}
+        ]
+    }}
+    ```
+    
+    ⚠️ 관련성이 낮은 페이지는 절대 포함하지 마세요!
+    """
+    
+    model = genai.GenerativeModel('gemini-2.0-flash')
+    # 예외를 그대로 전파하도록 try-catch 제거
+    return call_gemini_with_retry(model, [batch_file, prompt])
 
 def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
     """배치 단위로 PDF 분석"""
@@ -207,13 +205,13 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
             progress_bar.progress((idx + 1) / len(batches))
             
             try:
-                # 배치 파일 업로드
-                batch_file = upload_pdf_to_gemini(batch['path'])
-                
-                # 배치간 대기 시간 추가 (rate limiting)
+                # 배치간 대기 시간 추가 (rate limiting) - 업로드 전에 실행
                 if idx > 0:
                     st.info(f"⏳ 다음 배치 처리를 위해 3초 대기...")
                     time.sleep(3)
+                
+                # 배치 파일 업로드
+                batch_file = upload_pdf_to_gemini(batch['path'])
                 
                 # 배치 분석
                 batch_response = analyze_pdf_batch(batch_file, user_prompt, batch)

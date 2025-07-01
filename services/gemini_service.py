@@ -39,7 +39,7 @@ def call_gemini_with_retry(model, content, max_retries=3, base_delay=2):
                         time.sleep(30)
                 else:
                     st.error("❌ API 할당량이 완전히 소진되었습니다. 나중에 다시 시도해주세요.")
-                    raise Exception("API 할당량 초과")
+                    raise Exception("QUOTA_EXHAUSTED")
             else:
                 # 다른 오류
                 if attempt < max_retries - 1:
@@ -225,6 +225,16 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
                 all_pages.extend(pages)
                 all_page_info.update(page_info)
                 
+            except Exception as e:
+                # API 할당량 소진 시 즉시 중단
+                if "QUOTA_EXHAUSTED" in str(e):
+                    st.error("❌ API 할당량 소진으로 배치 처리를 중단합니다.")
+                    progress_bar.empty()
+                    # 지금까지 처리된 결과라도 반환
+                    break
+                else:
+                    st.warning(f"⚠️ 배치 {idx + 1} 처리 실패: {e}")
+                    continue
             finally:
                 # 임시 파일 삭제
                 if os.path.exists(batch['path']):

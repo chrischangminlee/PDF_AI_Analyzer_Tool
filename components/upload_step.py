@@ -181,6 +181,7 @@ def run_upload_step():
                 result_placeholder.warning("⚠️ 질문과 관련된 페이지를 찾지 못했습니다. 다른 질문으로 시도해보세요.")
 
         except Exception as e:
+            import traceback
             # 모든 진행 단계 블록 제거
             step1_placeholder.empty()
             step2_placeholder.empty()
@@ -188,4 +189,8 @@ def run_upload_step():
             step4_placeholder.empty()
             
             result_placeholder.error(f"❌ **오류 발생:** {str(e)}")
+            
+            # 디버깅을 위한 상세 오류 정보
+            st.error("상세 오류 정보:")
+            st.code(traceback.format_exc())
             st.error("위 오류가 지속되면 페이지를 새로고침하고 다시 시도해주세요.")

@@ -3,7 +3,7 @@
 import streamlit as st
 import tempfile, os
 from services.pdf_service import annotate_pdf_with_page_numbers, upload_pdf_to_gemini, convert_pdf_to_images
-from services.gemini_service import find_relevant_pages_with_gemini, parse_page_info, verify_page_analysis
+from services.gemini_service import find_relevant_pages_with_gemini, parse_page_info
 
 def run_upload_step():
     st.header("1단계: PDF 업로드 및 질문 입력")
@@ -132,46 +132,11 @@ def run_upload_step():
 
             step4_placeholder.success("🤖 **4/4단계:** AI 관련 페이지 분석 완료 ✅")
 
-            # 5단계: 분석 결과 검증
-            if st.session_state.relevant_pages:
-                step5_placeholder = st.empty()
-                step5_placeholder.info("🔍 **5/5단계:** 분석 결과 검증 중...")
-                
-                # 각 페이지 검증
-                failed_pages = []
-                for page_num in st.session_state.relevant_pages[:3]:  # 처음 3개만 검증 (시간 절약)
-                    if page_num in st.session_state.page_info:
-                        summary = st.session_state.page_info[page_num].get('page_response', '')
-                        is_valid, error_msg = verify_page_analysis(page_num, summary, numbered_bytes)
-                        
-                        if not is_valid:
-                            failed_pages.append((page_num, error_msg))
-                
-                if failed_pages:
-                    step5_placeholder.error("🔍 **5/5단계:** 검증 실패 - 일부 페이지 분석이 정확하지 않습니다 ❌")
-                    # 모든 단계 블록 제거
-                    step1_placeholder.empty()
-                    step2_placeholder.empty()
-                    step3_placeholder.empty()
-                    step4_placeholder.empty()
-                    step5_placeholder.empty()
-                    
-                    result_placeholder.error(f"❌ **분석 검증 실패**: 페이지 내용과 요약이 일치하지 않습니다. 다시 시도해주세요.")
-                    
-                    with st.expander("검증 실패 상세 정보"):
-                        for page, error in failed_pages:
-                            st.write(f"- 페이지 {page}: {error}")
-                    return
-                else:
-                    step5_placeholder.success("🔍 **5/5단계:** 분석 결과 검증 완료 ✅")
-
             # 모든 진행 단계 블록 제거
             step1_placeholder.empty()
             step2_placeholder.empty()
             step3_placeholder.empty()
             step4_placeholder.empty()
-            if 'step5_placeholder' in locals():
-                step5_placeholder.empty()
             
             if st.session_state.relevant_pages:
                 st.session_state.step = 2

@@ -252,65 +252,6 @@ def analyze_full_pdf(uploaded_file, user_prompt):
         st.error(f"Gemini 호출 오류: {e}")
         return ""
 
-def verify_page_analysis(page_number, summary, pdf_bytes):
-    """특정 페이지의 분석 결과를 검증"""
-    try:
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        
-        # 페이지 번호 유효성 확인
-        if page_number < 1 or page_number > len(reader.pages):
-            return False, f"페이지 번호 {page_number}가 유효 범위를 벗어남"
-        
-        # 해당 페이지만 추출
-        writer = PdfWriter()
-        writer.add_page(reader.pages[page_number - 1])
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            writer.write(tmp)
-            tmp_path = tmp.name
-        
-        try:
-            # 단일 페이지 업로드
-            single_page_file = upload_pdf_to_gemini(tmp_path)
-            
-            # 검증 프롬프트
-            prompt = f"""
-            이 PDF는 단일 페이지입니다.
-            
-            다음 요약이 이 페이지의 실제 내용과 일치하는지 검증하세요:
-            "{summary}"
-            
-            응답 형식:
-            {{
-                "match": true/false,
-                "reason": "일치하지 않는 이유 (불일치 시)",
-                "actual_content": "페이지의 실제 핵심 내용 (20자 이내)"
-            }}
-            """
-            
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content([single_page_file, prompt])
-            
-            # 검증 결과 파싱
-            result_text = response.text.strip()
-            if "{" in result_text and "}" in result_text:
-                start = result_text.find("{")
-                end = result_text.rfind("}") + 1
-                json_str = result_text[start:end]
-                result = json.loads(json_str)
-                
-                if not result.get('match', False):
-                    return False, result.get('reason', '내용 불일치')
-                return True, None
-            
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-                
-    except Exception as e:
-        return False, f"검증 중 오류: {str(e)}"
-    
-    return True, None
 
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt, original_pdf_bytes):
     """개선된 최종 답변 생성"""

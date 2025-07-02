@@ -4,7 +4,6 @@ import io, os, tempfile, json, time
 import streamlit as st
 from PyPDF2 import PdfReader, PdfWriter
 import google.generativeai as genai
-from .pdf_service import upload_pdf_to_gemini
 
 def call_gemini_with_retry(model, content, max_retries=3, base_delay=2):
     """Gemini API 호출을 재시도 로직과 함께 실행"""
@@ -136,8 +135,11 @@ def split_pdf_for_batch_analysis(pdf_bytes, batch_size=10):
     
     return batches
 
-def analyze_pdf_batch(batch_file, user_prompt, batch_info):
+def analyze_pdf_batch(batch_path, user_prompt, batch_info):
     """단일 배치 PDF 분석"""
+    # 배치 파일을 Gemini에 업로드
+    batch_file = genai.upload_file(batch_path)
+    
     prompt = f"""
     이 PDF는 전체 문서의 {batch_info['start_page']}페이지부터 {batch_info['end_page']}페이지까지만 포함합니다.
     
@@ -210,11 +212,8 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None):
                     st.info(f"⏳ 다음 배치 처리를 위해 3초 대기...")
                     time.sleep(3)
                 
-                # 배치 파일 업로드
-                batch_file = upload_pdf_to_gemini(batch['path'])
-                
-                # 배치 분석
-                batch_response = analyze_pdf_batch(batch_file, user_prompt, batch)
+                # 배치 분석 (내부에서 업로드 처리)
+                batch_response = analyze_pdf_batch(batch['path'], user_prompt, batch)
                 
                 # 결과 파싱
                 pages, page_info = parse_page_info(batch_response)
@@ -270,7 +269,7 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt, origi
         tmp_path = tmp.name
     
     try:
-        uploaded_sel = upload_pdf_to_gemini(tmp_path)
+        uploaded_sel = genai.upload_file(tmp_path)
     finally:
         os.unlink(tmp_path)
 

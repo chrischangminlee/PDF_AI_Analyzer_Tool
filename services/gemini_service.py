@@ -5,14 +5,15 @@ import streamlit as st
 from PyPDF2 import PdfReader, PdfWriter
 import google.generativeai as genai
 
-def call_gemini_with_retry(model, content, max_retries=3, base_delay=2):
+def call_gemini_with_retry(model, content, max_retries=3, base_delay=2, status_placeholder=None):
     """Gemini API 호출을 재시도 로직과 함께 실행"""
     for attempt in range(max_retries):
         try:
             # API 호출 전 대기 (rate limiting)
             if attempt > 0:
                 delay = base_delay * (2 ** attempt)  # 지수 백오프
-                st.info(f"⏳ API 호출 대기 중... ({delay}초)")
+                if status_placeholder:
+                    status_placeholder.info(f"⏳ API 호출 대기 중... ({delay}초)")
                 time.sleep(delay)
             
             response = model.generate_content(content)
@@ -28,21 +29,26 @@ def call_gemini_with_retry(model, content, max_retries=3, base_delay=2):
                         # 서버에서 권장하는 대기 시간 추출
                         try:
                             delay = 45  # 기본 45초
-                            st.warning(f"⚠️ API 할당량 초과. {delay}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                            if status_placeholder:
+                                status_placeholder.warning(f"⚠️ API 할당량 초과. {delay}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
                             time.sleep(delay)
                         except:
-                            st.warning(f"⚠️ API 할당량 초과. 60초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                            if status_placeholder:
+                                status_placeholder.warning(f"⚠️ API 할당량 초과. 60초 대기 후 재시도... ({attempt + 1}/{max_retries})")
                             time.sleep(60)
                     else:
-                        st.warning(f"⚠️ API 할당량 초과. 30초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                        if status_placeholder:
+                            status_placeholder.warning(f"⚠️ API 할당량 초과. 30초 대기 후 재시도... ({attempt + 1}/{max_retries})")
                         time.sleep(30)
                 else:
-                    st.error("❌ API 할당량이 완전히 소진되었습니다. 나중에 다시 시도해주세요.")
+                    if status_placeholder:
+                        status_placeholder.error("❌ API 할당량이 완전히 소진되었습니다. 나중에 다시 시도해주세요.")
                     raise Exception("QUOTA_EXHAUSTED")
             else:
                 # 다른 오류
                 if attempt < max_retries - 1:
-                    st.warning(f"⚠️ API 호출 실패. 5초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                    if status_placeholder:
+                        status_placeholder.warning(f"⚠️ API 호출 실패. 5초 대기 후 재시도... ({attempt + 1}/{max_retries})")
                     time.sleep(5)
                 else:
                     raise e
@@ -135,7 +141,7 @@ def split_pdf_for_batch_analysis(pdf_bytes, batch_size=10):
     
     return batches
 
-def analyze_pdf_batch(batch_path, user_prompt, batch_info):
+def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=None):
     """단일 배치 PDF 분석"""
     # 배치 파일을 Gemini에 업로드
     batch_file = genai.upload_file(batch_path)
@@ -191,9 +197,9 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info):
     
     model = genai.GenerativeModel('gemini-2.0-flash')
     # 예외를 그대로 전파하도록 try-catch 제거
-    return call_gemini_with_retry(model, [batch_file, prompt])
+    return call_gemini_with_retry(model, [batch_file, prompt], status_placeholder=status_placeholder)
 
-def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None):
+def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placeholder=None):
     """배치 단위로 PDF 분석"""
     all_pages = []
     all_page_info = {}
@@ -209,11 +215,16 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None):
             try:
                 # 배치간 대기 시간 추가 (rate limiting) - 업로드 전에 실행
                 if idx > 0:
-                    st.info(f"⏳ 다음 배치 처리를 위해 3초 대기...")
+                    if status_placeholder:
+                        status_placeholder.info(f"⏳ 배치 {idx + 1}/{len(batches)} 처리를 위해 3초 대기...")
                     time.sleep(3)
                 
+                # 현재 배치 진행상황 표시
+                if status_placeholder:
+                    status_placeholder.info(f"🤖 배치 {idx + 1}/{len(batches)} 분석 중... (페이지 {batch['start_page']}-{batch['end_page']})")
+                
                 # 배치 분석 (내부에서 업로드 처리)
-                batch_response = analyze_pdf_batch(batch['path'], user_prompt, batch)
+                batch_response = analyze_pdf_batch(batch['path'], user_prompt, batch, status_placeholder)
                 
                 # 결과 파싱
                 pages, page_info = parse_page_info(batch_response)
@@ -225,12 +236,14 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None):
             except Exception as e:
                 # API 할당량 소진 시 즉시 중단
                 if "QUOTA_EXHAUSTED" in str(e):
-                    st.error("❌ API 할당량 소진으로 배치 처리를 중단합니다.")
+                    if status_placeholder:
+                        status_placeholder.error("❌ API 할당량 소진으로 배치 처리를 중단합니다.")
                     progress_bar.empty()
                     # 지금까지 처리된 결과라도 반환
                     break
                 else:
-                    st.warning(f"⚠️ 배치 {idx + 1} 처리 실패: {e}")
+                    if status_placeholder:
+                        status_placeholder.warning(f"⚠️ 배치 {idx + 1} 처리 실패: {e}")
                     continue
             finally:
                 # 임시 파일 삭제

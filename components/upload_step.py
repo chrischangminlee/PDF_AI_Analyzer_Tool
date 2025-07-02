@@ -99,8 +99,14 @@ def run_upload_step():
             # 3단계: AI 분석 실행
             step3_placeholder.info("🤖 **3/3단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
             
+            # 상태 업데이트용 placeholder 생성
+            status_placeholder = st.empty()
+            
             # 배치 분석 방식으로 변경
-            pages, page_info = find_relevant_pages_with_gemini(user_prompt_input, pdf_bytes=numbered_bytes)
+            pages, page_info = find_relevant_pages_with_gemini(user_prompt_input, pdf_bytes=numbered_bytes, status_placeholder=status_placeholder)
+            
+            # 분석 완료 후 상태 메시지 정리
+            status_placeholder.empty()
             
             if not pages:
                 # 모든 진행 단계 블록 제거

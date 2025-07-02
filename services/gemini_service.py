@@ -158,7 +158,7 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     ⚠️ **매우 중요**: 다음 기준을 엄격히 적용하세요
     
     **상 (직접 관련)**: 
-    - 사용자 질문의 핵심 키워드가 페이지에 명시적으로 언급됨
+    - 사용자 질문의 핵심 키워드가 페이지에 명시적으로 언급됨 (키워드만 명시되고 직접적 설명이 없으면 관련도 "상" 아님)
     - 질문에 대한 직접적인 답변이나 정의가 포함됨
     - 질문과 정확히 일치하는 주제를 다룸
     
@@ -237,10 +237,10 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placehol
                 # API 할당량 소진 시 즉시 중단
                 if "QUOTA_EXHAUSTED" in str(e):
                     if status_placeholder:
-                        status_placeholder.error("❌ API 할당량 소진으로 배치 처리를 중단합니다.")
+                        status_placeholder.error("❌ API 할당량이 소진되어 분석을 완료할 수 없습니다.")
                     progress_bar.empty()
-                    # 지금까지 처리된 결과라도 반환
-                    break
+                    # 할당량 소진 시 빈 결과 반환 (부분 결과 X)
+                    return [], {}
                 else:
                     if status_placeholder:
                         status_placeholder.warning(f"⚠️ 배치 {idx + 1} 처리 실패: {e}")

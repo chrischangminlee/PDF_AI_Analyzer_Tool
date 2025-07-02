@@ -191,7 +191,7 @@ def analyze_pdf_batch(batch_file, user_prompt, batch_info):
     # 예외를 그대로 전파하도록 try-catch 제거
     return call_gemini_with_retry(model, [batch_file, prompt])
 
-def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
+def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None):
     """배치 단위로 PDF 분석"""
     all_pages = []
     all_page_info = {}
@@ -245,67 +245,9 @@ def find_relevant_pages_with_gemini(uploaded_file, user_prompt, pdf_bytes=None):
         return unique_pages[:10], all_page_info
     
     else:
-        # 기존 방식 (전체 PDF 한 번에 분석)
-        response = analyze_full_pdf(uploaded_file, user_prompt)
-        pages, page_info = parse_page_info(response)
-        return pages[:10], page_info
+        # pdf_bytes가 없는 경우 빈 결과 반환
+        return [], {}
 
-def analyze_full_pdf(uploaded_file, user_prompt):
-    """전체 PDF 분석 (기존 방식)"""
-    try:
-        prompt = f"""
-        당신은 PDF 문서 분석 전문가입니다. 사용자 질문과 **정말로 관련이 높은** 페이지만을 찾아야 합니다.
-
-        ## 사용자 질문
-        {user_prompt}
-
-        ## 극도로 엄격한 관련성 판단 기준
-        
-        **상 (직접 관련) - 반드시 포함해야 할 페이지**:
-        - 사용자 질문의 **핵심 키워드**가 페이지 제목이나 본문에 명확히 언급됨
-        - 질문에 대한 **직접적인 답변, 정의, 설명**이 포함됨
-        - 질문 주제를 **주요 내용**으로 다루는 페이지
-        
-        **중 (간접 관련) - 신중하게 판단**:
-        - 질문 주제의 **직접적인 배경 정보**나 **전제 조건** 설명
-        - 질문과 관련된 **상위/하위 개념**의 상세한 설명
-        - 질문 해결에 **필수적인** 관련 정보 포함
-        
-        **하 (관련 없음) - 절대 포함하지 말 것**:
-        - 질문 키워드가 **단순 언급**만 되고 주요 내용이 아닌 경우
-        - **목차, 서문, 부록, 참고문헌** 등의 형식적 내용
-        - 질문과 **다른 주제**를 다루는 페이지
-        - **확신이 없는** 모든 페이지
-
-        ## 분석 지시사항
-        1. **매우 엄격하게** 관련성을 판단하세요
-        2. **확신이 없으면 제외**하세요 (빠뜨리는 것이 잘못 포함하는 것보다 낫습니다)
-        3. 각 페이지의 좌측 상단 번호를 정확히 확인하세요
-        4. **관련성이 '상' 또는 '중'인 페이지만** 응답에 포함하세요
-
-        ## 응답 형식
-        **진짜 관련있는 페이지만** JSON으로 응답하세요 (없으면 빈 배열):
-        
-        ```json
-        {{
-            "pages": [
-                {{
-                    "page_number": [페이지 좌측 상단의 물리적 번호],
-                    "summary": "[해당 페이지의 핵심 내용 15자 이내]",
-                    "relevance": "[상/중]"
-                }}
-            ]
-        }}
-        ```
-
-        ⚠️ **중요**: 관련성이 낮거나 확실하지 않은 페이지는 절대 포함하지 마세요!
-        """
-        
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        return call_gemini_with_retry(model, [uploaded_file, prompt])
-    except Exception as e:
-        st.error(f"Gemini 호출 오류: {e}")
-        return ""
 
 
 def generate_final_answer_from_selected_pages(selected_pages, user_prompt, original_pdf_bytes):

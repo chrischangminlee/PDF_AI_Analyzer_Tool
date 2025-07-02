@@ -2,7 +2,7 @@
 
 import streamlit as st
 import tempfile, os
-from services.pdf_service import annotate_pdf_with_page_numbers, upload_pdf_to_gemini, convert_pdf_to_images
+from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
 from services.gemini_service import find_relevant_pages_with_gemini, parse_page_info
 
 def run_upload_step():
@@ -69,7 +69,6 @@ def run_upload_step():
         step1_placeholder = st.empty()
         step2_placeholder = st.empty()
         step3_placeholder = st.empty()
-        step4_placeholder = st.empty()
         result_placeholder = st.empty()
         
         try:
@@ -87,38 +86,27 @@ def run_upload_step():
             st.session_state.original_pdf_bytes = numbered_bytes
             step1_placeholder.success("📝 **1/4단계:** PDF에 페이지 번호 삽입 완료 ✅")
 
-            # 2단계: Gemini에 PDF 업로드
-            step2_placeholder.info("☁️ **2/4단계:** Gemini AI에 PDF 업로드 중...")
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                tmp.write(numbered_bytes)
-                tmp_path = tmp.name
-            try:
-                uploaded_file = upload_pdf_to_gemini(tmp_path)
-            finally:
-                os.unlink(tmp_path)
-            step2_placeholder.success("☁️ **2/4단계:** Gemini AI에 PDF 업로드 완료 ✅")
 
-            # 3단계: PDF를 이미지로 변환
-            step3_placeholder.info("🖼️ **3/4단계:** PDF를 이미지로 변환 중...")
+            # 2단계: PDF를 이미지로 변환
+            step2_placeholder.info("🖼️ **2/3단계:** PDF를 이미지로 변환 중...")
             st.session_state.pdf_images = convert_pdf_to_images(numbered_bytes)
             
             if not st.session_state.pdf_images:
-                step3_placeholder.warning("🖼️ **3/4단계:** PDF 이미지 변환 실패 ⚠️ (분석은 계속 진행)")
+                step2_placeholder.warning("🖼️ **2/3단계:** PDF 이미지 변환 실패 ⚠️ (분석은 계속 진행)")
             else:
-                step3_placeholder.success("🖼️ **3/4단계:** PDF를 이미지로 변환 완료 ✅")
+                step2_placeholder.success("🖼️ **2/3단계:** PDF를 이미지로 변환 완료 ✅")
 
-            # 4단계: AI 분석 실행
-            step4_placeholder.info("🤖 **4/4단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
+            # 3단계: AI 분석 실행
+            step3_placeholder.info("🤖 **3/3단계:** AI가 관련 페이지 분석 중... (시간이 다소 걸릴 수 있습니다)")
             
             # 배치 분석 방식으로 변경
-            pages, page_info = find_relevant_pages_with_gemini(uploaded_file, user_prompt_input, pdf_bytes=numbered_bytes)
+            pages, page_info = find_relevant_pages_with_gemini(user_prompt_input, pdf_bytes=numbered_bytes)
             
             if not pages:
                 # 모든 진행 단계 블록 제거
                 step1_placeholder.empty()
                 step2_placeholder.empty()
                 step3_placeholder.empty()
-                step4_placeholder.empty()
                 
                 result_placeholder.error("❌ AI 분석 결과가 비어있습니다. 다시 시도해주세요.")
                 return
@@ -130,13 +118,12 @@ def run_upload_step():
             st.session_state.relevant_pages = valid_pages
             st.session_state.page_info = page_info
 
-            step4_placeholder.success("🤖 **4/4단계:** AI 관련 페이지 분석 완료 ✅")
+            step3_placeholder.success("🤖 **3/3단계:** AI 관련 페이지 분석 완료 ✅")
 
             # 모든 진행 단계 블록 제거
             step1_placeholder.empty()
             step2_placeholder.empty()
             step3_placeholder.empty()
-            step4_placeholder.empty()
             
             if st.session_state.relevant_pages:
                 st.session_state.step = 2
@@ -151,7 +138,6 @@ def run_upload_step():
             step1_placeholder.empty()
             step2_placeholder.empty()
             step3_placeholder.empty()
-            step4_placeholder.empty()
             
             result_placeholder.error(f"❌ **오류 발생:** {str(e)}")
             

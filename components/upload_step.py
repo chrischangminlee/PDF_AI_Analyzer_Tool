@@ -81,10 +81,10 @@ def run_upload_step():
             st.session_state.user_prompt = user_prompt_input
 
             # 1단계: PDF 페이지 번호 삽입
-            step1_placeholder.info("📝 **1/4단계:** PDF에 페이지 번호 삽입 중...")
+            step1_placeholder.info("📝 **1/3단계:** PDF에 페이지 번호 삽입 중...")
             numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)
             st.session_state.original_pdf_bytes = numbered_bytes
-            step1_placeholder.success("📝 **1/4단계:** PDF에 페이지 번호 삽입 완료 ✅")
+            step1_placeholder.success("📝 **1/3단계:** PDF에 페이지 번호 삽입 완료 ✅")
 
 
             # 2단계: PDF를 이미지로 변환

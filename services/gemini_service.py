@@ -195,7 +195,7 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     ⚠️ 관련성이 낮은 페이지는 절대 포함하지 마세요!
     """
     
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     # 예외를 그대로 전파하도록 try-catch 제거
     return call_gemini_with_retry(model, [batch_file, prompt], status_placeholder=status_placeholder)
 
@@ -309,5 +309,5 @@ def generate_final_answer_from_selected_pages(selected_pages, user_prompt, origi
     4. 핵심 내용을 먼저 제시하고 상세 설명을 추가하세요
     """
     
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     return call_gemini_with_retry(model, [uploaded_sel, prompt])

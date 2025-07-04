@@ -1,0 +1,155 @@
+# Project_Context.txt
+
+## 📋 파일 목적
+이 파일은 PDF AI 분석 도구 프로젝트의 전체 구조와 각 파일의 함수/기능을 요약한 문서입니다.
+LLM이 요청을 수행하는데 필요한 특정 코드 위치를 정확히 식별하고 수정할 수 있도록 라인 번호와 함께 정리되어 있습니다.
+**⚠️ 중요: 코드 변경 시 이 파일도 반드시 업데이트해야 합니다.**
+
+---
+
+## 🏗️ 프로젝트 구조
+```
+pdf-analyzer/
+├── app.py                    # 메인 애플리케이션 진입점
+├── config.py                 # 환경 설정 및 API 키 관리
+├── requirements.txt          # Python 패키지 의존성
+├── packages.txt             # 시스템 패키지 (poppler 등)
+├── components/              # UI 컴포넌트 모듈
+│   ├── sidebar.py          # 사이드바 UI
+│   └── upload_step.py      # PDF 업로드 및 분석 결과 표시
+├── services/               # 비즈니스 로직 서비스
+│   ├── pdf_service.py      # PDF 처리 관련 기능
+│   └── gemini_service.py   # Google Gemini API 연동
+└── utils/                  # 유틸리티 함수
+    └── session_state.py    # Streamlit 세션 상태 관리
+```
+
+---
+
+## 📁 /app.py
+- Line 1~7: Import 문
+  - 필요한 모듈 및 컴포넌트 import
+- Line 9~10: 세션 초기화
+  - init_session_state() 호출
+- Line 12~13: 사이드바 렌더링
+  - render_sidebar() 호출
+- Line 15~21: 메인 UI
+  - 앱 타이틀 및 설명 표시
+- Line 23: PDF 업로드 및 분석 실행
+  - run_upload_step() 호출
+
+---
+
+## 📁 /config.py
+- Line 1~6: Import 및 페이지 설정
+  - Streamlit 페이지 config 설정
+- Line 8~11: get_api_key()
+  - Streamlit secrets 또는 .env에서 API 키 가져오기
+- Line 13~19: API 키 검증 및 Gemini 설정
+  - API 키 존재 확인 및 genai.configure() 호출
+
+---
+
+## 📁 /components/sidebar.py
+- Line 1: Import 문
+- Line 3~30: render_sidebar()
+  - 앱 소개, 사용 방법, 주의사항 표시
+  - 관련 링크 제공
+
+---
+
+## 📁 /components/upload_step.py
+- Line 1~5: Import 문
+  - pandas, base64, PDF/Gemini 서비스 import
+- Line 7~153: run_upload_step()
+  - PDF 업로드 폼 표시
+  - 예시 PDF 로드/제거 기능
+  - 3단계 분석 실행 및 진행 상태 표시
+  - 분석 완료 후 display_analysis_results() 호출
+- Line 11~17: load_example_pdf() (내부 함수)
+  - 예시 PDF 파일 로드
+- Line 155~250: display_analysis_results()
+  - 분석 결과를 4컬럼 pandas DataFrame으로 테이블 표시
+  - 컬럼: 페이지, 답변(사용자 질문 대한), 관련도, 상세보기
+  - 페이지별 상세보기 버튼 (새 탭에서 PDF 보기)
+  - 엑셀 복사 기능 제거됨
+  - 새로운 분석 시작 버튼
+
+---
+
+## 📁 /services/pdf_service.py
+- Line 1~7: Import 문
+- Line 9~16: convert_pdf_to_images(pdf_bytes)
+  - PDF를 JPEG 이미지로 변환 (dpi=100)
+  - pdf2image 라이브러리 사용
+- Line 18~38: annotate_pdf_with_page_numbers(pdf_bytes)
+  - PDF 각 페이지 좌측 상단에 페이지 번호 오버레이
+  - ReportLab으로 번호 생성, PyPDF2로 병합
+- Line 40~56: extract_single_page_pdf(pdf_bytes, page_num)
+  - 특정 페이지만 추출하여 별도 PDF 생성
+  - 페이지 상세 보기 기능에 사용
+
+---
+
+## 📁 /services/gemini_service.py
+- Line 1~9: Import 문 및 모델 상수
+  - GEMINI_MODEL = "gemini-2.5-flash"
+- Line 11~57: call_gemini_with_retry(model, content, max_retries, base_delay, status_placeholder)
+  - Gemini API 호출 with 재시도 로직
+  - 429 에러(할당량 초과) 시 지수 백오프
+  - status_placeholder로 상태 메시지 단일화
+- Line 59~86: parse_page_info(gemini_response)
+  - JSON 형식 응답 파싱
+  - 페이지 번호, 사용자 질문 답변, 관련도 추출
+  - 'answer' 필드로 변경 (기존 'summary'에서)
+- Line 88~105: parse_page_info_legacy(gemini_response)
+  - 파이프(|) 구분 형식 파싱 (폴백용)
+- Line 107~131: split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
+  - PDF를 10페이지씩 배치로 분할
+  - 임시 파일로 각 배치 저장
+- Line 133~203: analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder)
+  - 단일 배치 PDF를 Gemini로 분석
+  - 사용자 질문에 대한 구체적 답변 생성 프롬프트
+  - 관련도 상/중인 페이지만 추출
+- Line 205~265: find_relevant_pages_with_gemini(user_prompt, pdf_bytes, status_placeholder)
+  - 전체 PDF를 배치 단위로 순차 분석
+  - 진행률 표시 및 배치별 상태 업데이트
+  - API 할당량 소진 시 빈 결과 반환
+  - 결과 병합 및 중복 제거
+
+---
+
+## 📁 /utils/session_state.py
+- Line 1: Import 문
+- Line 3~13: init_session_state()
+  - Streamlit 세션 상태 변수 초기화
+  - relevant_pages, page_info, user_prompt 등 관리
+
+---
+
+## 🔄 주요 처리 흐름
+1. **사용자 입력** (upload_step.py)
+   - PDF 업로드 → user_prompt 입력 → 분석 시작
+
+2. **PDF 전처리** (pdf_service.py)
+   - annotate_pdf_with_page_numbers() → 페이지 번호 추가
+   - convert_pdf_to_images() → 이미지 변환
+
+3. **AI 분석** (gemini_service.py)
+   - split_pdf_for_batch_analysis() → 10페이지 배치 분할
+   - analyze_pdf_batch() → 각 배치 Gemini 분석
+   - parse_page_info() → 응답 파싱
+
+4. **결과 표시** (upload_step.py)
+   - display_analysis_results() → 4컬럼 테이블 UI (페이지/답변/관련도/상세보기)
+   - extract_single_page_pdf() → 개별 페이지 추출 및 새 탭 열기
+
+---
+
+## 💡 핵심 기능 위치
+- **PDF 업로드 UI**: components/upload_step.py (Line 7~153)
+- **Gemini API 호출**: services/gemini_service.py (Line 133~203)
+- **4컬럼 결과 테이블**: components/upload_step.py (Line 155~250)
+- **페이지 번호 오버레이**: services/pdf_service.py (Line 18~38)
+- **배치 분석 로직**: services/gemini_service.py (Line 205~265)
+- **상태 메시지 단일화**: services/gemini_service.py (Line 11~57)

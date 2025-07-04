@@ -73,7 +73,7 @@ def parse_page_info(gemini_response):
                         page_num = int(page_num)
                         pages.append(page_num)
                         page_info[page_num] = {
-                            'page_response': item.get('summary', ''),
+                            'page_response': item.get('answer', ''),
                             'relevance': item.get('relevance', '하')
                         }
                     except (ValueError, TypeError):
@@ -166,8 +166,9 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     ## 분석 지시사항
     1. 각 페이지를 독립적으로 분석
     2. 페이지 좌측 상단 번호 확인
-    3. **관련성이 '상' 또는 '중'인 페이지만** 보고
-    4. 확신이 없으면 제외하세요 (false positive 방지)
+    3. **사용자 질문에 대한 구체적인 답변을 해당 페이지에서 추출**
+    4. **관련성이 '상' 또는 '중'인 페이지만** 보고
+    5. 확신이 없으면 제외하세요 (false positive 방지)
     
     ## 응답 형식
     관련성이 높은 페이지만 JSON으로 응답하세요:
@@ -176,7 +177,7 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
         "pages": [
             {{
                 "page_number": [좌측 상단의 실제 페이지 번호],
-                "summary": "[해당 페이지의 핵심 내용 15자 이내]",
+                "answer": "[사용자 질문에 대한 답변 (30자 이내)]",
                 "relevance": "[상/중]"
             }}
         ]

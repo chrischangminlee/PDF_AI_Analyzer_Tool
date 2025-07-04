@@ -164,14 +164,15 @@ def display_analysis_results():
                 table_data.append({
                     '페이지': page_num,
                     '답변': info['page_response'],
-                    '관련도': info['relevance']
+                    '관련도': info['relevance'],
+                    '상세보기': "📄 보기"
                 })
     
     if table_data:
         # DataFrame 생성
         df = pd.DataFrame(table_data)
         
-        # 테이블 표시 (인덱스 숨김)
+        # 테이블 표시 (인덱스 숨김)        
         st.dataframe(
             df,
             use_container_width=True,
@@ -180,29 +181,36 @@ def display_analysis_results():
                 "페이지": st.column_config.NumberColumn(
                     "페이지",
                     help="PDF 페이지 번호",
-                    format="%d"
+                    format="%d",
+                    width="small"
                 ),
                 "답변": st.column_config.TextColumn(
                     "답변",
-                    help="해당 페이지의 핵심 내용",
+                    help="사용자 질문에 대한 답변",
                     width="large"
                 ),
                 "관련도": st.column_config.TextColumn(
                     "관련도",
                     help="질문과의 관련성",
                     width="small"
+                ),
+                "상세보기": st.column_config.TextColumn(
+                    "상세보기",
+                    help="페이지 상세 내용 보기",
+                    width="small"
                 )
             }
         )
         
-        # 페이지별 보기 버튼 추가
-        st.subheader("📄 페이지별 상세 보기")
-        cols = st.columns(4)
+        # 페이지별 상세보기 버튼
+        st.markdown("---")
+        st.subheader("📄 페이지 상세보기")
+        
+        cols = st.columns(min(4, len(table_data)))
         for idx, row in enumerate(table_data):
             page_num = row['페이지']
             with cols[idx % 4]:
                 if st.button(f"페이지 {page_num} 보기", key=f"view_page_{page_num}"):
-                    # 해당 페이지만 추출하여 새 탭에서 열기
                     single_page_pdf = extract_single_page_pdf(
                         st.session_state.original_pdf_bytes, 
                         page_num
@@ -213,26 +221,6 @@ def display_analysis_results():
                         # JavaScript로 새 탭 열기
                         href = f'<a href="data:application/pdf;base64,{b64}" target="_blank">페이지 {page_num} 새 탭에서 열기</a>'
                         st.markdown(href, unsafe_allow_html=True)
-        
-        # 복사 기능 설명
-        st.markdown("---")
-        st.subheader("📋 엑셀로 복사하기")
-        st.info("""
-        **테이블을 엑셀로 복사하는 방법:**
-        1. 위 테이블에서 마우스로 전체 내용을 드래그하여 선택하세요
-        2. Ctrl+C (Mac: Cmd+C)로 복사하세요
-        3. 엑셀에서 원하는 셀을 선택 후 Ctrl+V (Mac: Cmd+V)로 붙여넣기 하세요
-        
-        또는 아래 버튼을 클릭하여 TSV 형식으로 복사할 수 있습니다.
-        """)
-        
-        # TSV 형식으로 변환
-        tsv_data = df.to_csv(sep='\t', index=False)
-        
-        # 복사 버튼
-        if st.button("📋 테이블 데이터 복사 (TSV 형식)", type="secondary"):
-            st.code(tsv_data, language=None)
-            st.info("위 텍스트를 전체 선택(Ctrl+A) 후 복사(Ctrl+C)하여 엑셀에 붙여넣으세요.")
     
     else:
         st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")

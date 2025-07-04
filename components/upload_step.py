@@ -161,65 +161,51 @@ def display_analysis_results():
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
             if info['relevance'] in ['상', '중']:  # 관련도 중~상만 표시
+                # 페이지 상세보기 링크 생성
+                single_page_pdf = extract_single_page_pdf(
+                    st.session_state.original_pdf_bytes, 
+                    page_num
+                )
+                if single_page_pdf:
+                    b64 = base64.b64encode(single_page_pdf).decode()
+                    detail_link = f'<a href="data:application/pdf;base64,{b64}" target="_blank">📄 보기</a>'
+                else:
+                    detail_link = "❌"
+                
                 table_data.append({
                     '페이지': page_num,
                     '답변': info['page_response'],
-                    '관련도': info['relevance']
+                    '관련도': info['relevance'],
+                    '상세보기': detail_link
                 })
     
     if table_data:
-        # DataFrame 생성
-        df = pd.DataFrame(table_data)
+        # 테이블을 HTML로 표시하여 링크가 작동하도록 함
+        st.markdown("### 📊 분석 결과 테이블")
         
-        # 테이블 표시 (인덱스 숨김)        
-        st.dataframe(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "페이지": st.column_config.NumberColumn(
-                    "페이지",
-                    help="PDF 페이지 번호",
-                    format="%d",
-                    width="small"
-                ),
-                "답변": st.column_config.TextColumn(
-                    "답변",
-                    help="사용자 질문에 대한 답변",
-                    width="large"
-                ),
-                "관련도": st.column_config.TextColumn(
-                    "관련도",
-                    help="질문과의 관련성",
-                    width="small"
-                )
-            }
-        )
+        # HTML 테이블 생성
+        html_table = "<table style='width:100%; border-collapse: collapse;'>"
+        html_table += "<tr style='background-color: #f0f0f0;'>"
+        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>페이지</th>"
+        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>답변</th>"
+        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>관련도</th>"
+        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>상세보기</th>"
+        html_table += "</tr>"
         
-        # 간단한 페이지 보기 버튼들
-        if table_data:
-            st.markdown("---")
-            st.write("**📄 페이지 상세 보기:**")
-            
-            # 페이지 버튼들을 한 줄에 배치
-            cols = st.columns(len(table_data))
-            for idx, row in enumerate(table_data):
-                page_num = row['페이지']
-                with cols[idx]:
-                    if st.button(f"📄 {page_num}페이지", key=f"view_{page_num}"):
-                        single_page_pdf = extract_single_page_pdf(
-                            st.session_state.original_pdf_bytes, 
-                            page_num
-                        )
-                        if single_page_pdf:
-                            # Base64 인코딩하여 다운로드 링크 생성
-                            b64 = base64.b64encode(single_page_pdf).decode()
-                            href = f'<a href="data:application/pdf;base64,{b64}" download="page_{page_num}.pdf">📥 페이지 {page_num} 다운로드</a>'
-                            st.markdown(href, unsafe_allow_html=True)
-                            
-                            # 브라우저에서 바로 보기 링크도 제공
-                            view_href = f'<a href="data:application/pdf;base64,{b64}" target="_blank">🔍 페이지 {page_num} 새 탭에서 보기</a>'
-                            st.markdown(view_href, unsafe_allow_html=True)
+        for row in table_data:
+            html_table += "<tr>"
+            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['페이지']}</td>"
+            html_table += f"<td style='border: 1px solid #ddd; padding: 8px;'>{row['답변']}</td>"
+            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['관련도']}</td>"
+            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['상세보기']}</td>"
+            html_table += "</tr>"
+        
+        html_table += "</table>"
+        
+        st.markdown(html_table, unsafe_allow_html=True)
+        
+        # 사용 팁
+        st.info("💡 **팁:** 상세보기 컬럼의 '📄 보기' 링크를 클릭하면 해당 페이지를 새 탭에서 볼 수 있습니다.")
     
     else:
         st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")

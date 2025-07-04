@@ -1,12 +1,11 @@
-# upload_step.py - 간소화된 버전
-
 import streamlit as st
-import tempfile, os
-from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
-from services.gemini_service import find_relevant_pages_with_gemini, parse_page_info
+import pandas as pd
+import base64
+from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images, extract_single_page_pdf
+from services.gemini_service import find_relevant_pages_with_gemini
 
 def run_upload_step():
-    st.header("1단계: PDF 업로드 및 질문 입력")
+    st.header("PDF 업로드 및 질문 입력")
 
     # 예시 PDF 로드 기능
     def load_example_pdf():
@@ -69,15 +68,10 @@ def run_upload_step():
         step1_placeholder = st.empty()
         step2_placeholder = st.empty()
         step3_placeholder = st.empty()
-        result_placeholder = st.empty()
         
         try:
             # 세션 초기화
-            st.session_state.relevant_pages = []
-            st.session_state.page_info = {}
-            st.session_state.selected_pages = []
-            st.session_state.original_pdf_bytes = None
-            st.session_state.pdf_images = []
+            st.session_state.analysis_results = []
             st.session_state.user_prompt = user_prompt_input
 
             # 1단계: PDF 페이지 번호 삽입
@@ -85,7 +79,6 @@ def run_upload_step():
             numbered_bytes = annotate_pdf_with_page_numbers(pdf_bytes_to_process)
             st.session_state.original_pdf_bytes = numbered_bytes
             step1_placeholder.success("📝 **1/3단계:** PDF에 페이지 번호 삽입 완료 ✅")
-
 
             # 2단계: PDF를 이미지로 변환
             step2_placeholder.info("🖼️ **2/3단계:** PDF를 이미지로 변환 중...")
@@ -102,8 +95,12 @@ def run_upload_step():
             # 상태 업데이트용 placeholder 생성
             status_placeholder = st.empty()
             
-            # 배치 분석 방식으로 변경
-            pages, page_info = find_relevant_pages_with_gemini(user_prompt_input, pdf_bytes=numbered_bytes, status_placeholder=status_placeholder)
+            # 배치 분석 방식으로 실행
+            pages, page_info = find_relevant_pages_with_gemini(
+                user_prompt_input, 
+                pdf_bytes=numbered_bytes, 
+                status_placeholder=status_placeholder
+            )
             
             # 분석 완료 후 상태 메시지 정리
             status_placeholder.empty()
@@ -114,16 +111,13 @@ def run_upload_step():
                 step2_placeholder.empty()
                 step3_placeholder.empty()
                 
-                result_placeholder.error("❌ AI 분석 결과가 비어있습니다. 다시 시도해주세요.")
+                st.error("❌ AI 분석 결과가 비어있습니다. 다시 시도해주세요.")
                 return
             
-            total_pages = len(st.session_state.pdf_images) if st.session_state.pdf_images else 1
-            
-            # 페이지 번호 유효성 확인
-            valid_pages = [p for p in pages if 1 <= p <= total_pages]
-            st.session_state.relevant_pages = valid_pages
+            # 결과를 세션에 저장
+            st.session_state.relevant_pages = pages
             st.session_state.page_info = page_info
-
+            
             step3_placeholder.success("🤖 **3/3단계:** AI 관련 페이지 분석 완료 ✅")
 
             # 모든 진행 단계 블록 제거
@@ -131,12 +125,11 @@ def run_upload_step():
             step2_placeholder.empty()
             step3_placeholder.empty()
             
-            if st.session_state.relevant_pages:
-                st.session_state.step = 2
-                result_placeholder.success(f"✅ **분석 완료!** AI가 {len(st.session_state.relevant_pages)}개의 관련 페이지를 찾았습니다!")
-                st.rerun()
-            else:
-                result_placeholder.warning("⚠️ 질문과 관련된 페이지를 찾지 못했습니다. 다른 질문으로 시도해보세요.")
+            # 분석 완료 표시
+            st.success(f"✅ **분석 완료!** AI가 {len(pages)}개의 관련 페이지를 찾았습니다!")
+            
+            # 결과 표시
+            display_analysis_results()
 
         except Exception as e:
             import traceback
@@ -145,9 +138,110 @@ def run_upload_step():
             step2_placeholder.empty()
             step3_placeholder.empty()
             
-            result_placeholder.error(f"❌ **오류 발생:** {str(e)}")
+            st.error(f"❌ **오류 발생:** {str(e)}")
             
             # 디버깅을 위한 상세 오류 정보
             st.error("상세 오류 정보:")
             st.code(traceback.format_exc())
             st.error("위 오류가 지속되면 페이지를 새로고침하고 다시 시도해주세요.")
+    
+    # 이전 분석 결과가 있으면 표시
+    elif hasattr(st.session_state, 'relevant_pages') and st.session_state.relevant_pages:
+        display_analysis_results()
+
+
+def display_analysis_results():
+    """분석 결과를 테이블 형태로 표시"""
+    st.header("📊 분석 결과")
+    st.write(f"**질문:** {st.session_state.user_prompt}")
+    
+    # 결과 데이터 준비
+    table_data = []
+    for page_num in st.session_state.relevant_pages:
+        if page_num in st.session_state.page_info:
+            info = st.session_state.page_info[page_num]
+            if info['relevance'] in ['상', '중']:  # 관련도 중~상만 표시
+                table_data.append({
+                    '페이지': page_num,
+                    '답변': info['page_response'],
+                    '관련도': info['relevance']
+                })
+    
+    if table_data:
+        # DataFrame 생성
+        df = pd.DataFrame(table_data)
+        
+        # 테이블 표시 (인덱스 숨김)
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "페이지": st.column_config.NumberColumn(
+                    "페이지",
+                    help="PDF 페이지 번호",
+                    format="%d"
+                ),
+                "답변": st.column_config.TextColumn(
+                    "답변",
+                    help="해당 페이지의 핵심 내용",
+                    width="large"
+                ),
+                "관련도": st.column_config.TextColumn(
+                    "관련도",
+                    help="질문과의 관련성",
+                    width="small"
+                )
+            }
+        )
+        
+        # 페이지별 보기 버튼 추가
+        st.subheader("📄 페이지별 상세 보기")
+        cols = st.columns(4)
+        for idx, row in enumerate(table_data):
+            page_num = row['페이지']
+            with cols[idx % 4]:
+                if st.button(f"페이지 {page_num} 보기", key=f"view_page_{page_num}"):
+                    # 해당 페이지만 추출하여 새 탭에서 열기
+                    single_page_pdf = extract_single_page_pdf(
+                        st.session_state.original_pdf_bytes, 
+                        page_num
+                    )
+                    if single_page_pdf:
+                        # Base64 인코딩
+                        b64 = base64.b64encode(single_page_pdf).decode()
+                        # JavaScript로 새 탭 열기
+                        href = f'<a href="data:application/pdf;base64,{b64}" target="_blank">페이지 {page_num} 새 탭에서 열기</a>'
+                        st.markdown(href, unsafe_allow_html=True)
+        
+        # 복사 기능 설명
+        st.markdown("---")
+        st.subheader("📋 엑셀로 복사하기")
+        st.info("""
+        **테이블을 엑셀로 복사하는 방법:**
+        1. 위 테이블에서 마우스로 전체 내용을 드래그하여 선택하세요
+        2. Ctrl+C (Mac: Cmd+C)로 복사하세요
+        3. 엑셀에서 원하는 셀을 선택 후 Ctrl+V (Mac: Cmd+V)로 붙여넣기 하세요
+        
+        또는 아래 버튼을 클릭하여 TSV 형식으로 복사할 수 있습니다.
+        """)
+        
+        # TSV 형식으로 변환
+        tsv_data = df.to_csv(sep='\t', index=False)
+        
+        # 복사 버튼
+        if st.button("📋 테이블 데이터 복사 (TSV 형식)", type="secondary"):
+            st.code(tsv_data, language=None)
+            st.info("위 텍스트를 전체 선택(Ctrl+A) 후 복사(Ctrl+C)하여 엑셀에 붙여넣으세요.")
+    
+    else:
+        st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")
+    
+    # 새로운 분석 시작 버튼
+    if st.button("🔄 새로운 분석 시작", type="primary"):
+        # 세션 상태 초기화
+        for key in ['relevant_pages', 'page_info', 'user_prompt', 'original_pdf_bytes', 
+                    'pdf_images', 'example_pdf_loaded', 'example_pdf_bytes']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()

@@ -1,9 +1,12 @@
-# gemini_service.py - 배치 분석 및 검증 기능 추가
+# gemini_service.py - 배치 분석 및 검증 기능
 
 import io, os, tempfile, json, time
 import streamlit as st
 from PyPDF2 import PdfReader, PdfWriter
 import google.generativeai as genai
+
+# 모델 상수
+GEMINI_MODEL = "gemini-2.5-flash"
 
 def call_gemini_with_retry(model, content, max_retries=3, base_delay=2, status_placeholder=None):
     """Gemini API 호출을 재시도 로직과 함께 실행"""
@@ -25,21 +28,9 @@ def call_gemini_with_retry(model, content, max_retries=3, base_delay=2, status_p
             if "429" in error_msg or "quota" in error_msg.lower():
                 # 할당량 초과 시
                 if attempt < max_retries - 1:
-                    if "retry_delay" in error_msg:
-                        # 서버에서 권장하는 대기 시간 추출
-                        try:
-                            delay = 45  # 기본 45초
-                            if status_placeholder:
-                                status_placeholder.warning(f"⚠️ API 할당량 초과. {delay}초 대기 후 재시도... ({attempt + 1}/{max_retries})")
-                            time.sleep(delay)
-                        except:
-                            if status_placeholder:
-                                status_placeholder.warning(f"⚠️ API 할당량 초과. 60초 대기 후 재시도... ({attempt + 1}/{max_retries})")
-                            time.sleep(60)
-                    else:
-                        if status_placeholder:
-                            status_placeholder.warning(f"⚠️ API 할당량 초과. 30초 대기 후 재시도... ({attempt + 1}/{max_retries})")
-                        time.sleep(30)
+                    if status_placeholder:
+                        status_placeholder.warning(f"⚠️ API 할당량 초과. 30초 대기 후 재시도... ({attempt + 1}/{max_retries})")
+                    time.sleep(30)
                 else:
                     if status_placeholder:
                         status_placeholder.error("❌ API 할당량이 완전히 소진되었습니다. 나중에 다시 시도해주세요.")
@@ -195,8 +186,7 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     ⚠️ 관련성이 낮은 페이지는 절대 포함하지 마세요!
     """
     
-    model = genai.GenerativeModel('gemini-2.5-flash')
-    # 예외를 그대로 전파하도록 try-catch 제거
+    model = genai.GenerativeModel(GEMINI_MODEL)
     return call_gemini_with_retry(model, [batch_file, prompt], status_placeholder=status_placeholder)
 
 def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placeholder=None):
@@ -254,60 +244,8 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placehol
         
         # 중복 제거 및 정렬
         unique_pages = list(dict.fromkeys(all_pages))
-        return unique_pages[:10], all_page_info
+        return sorted(unique_pages), all_page_info
     
     else:
         # pdf_bytes가 없는 경우 빈 결과 반환
         return [], {}
-
-
-
-def generate_final_answer_from_selected_pages(selected_pages, user_prompt, original_pdf_bytes):
-    """개선된 최종 답변 생성"""
-    if not selected_pages:
-        return "선택된 페이지가 없습니다."
-
-    reader = PdfReader(io.BytesIO(original_pdf_bytes))
-    writer = PdfWriter()
-    
-    # 선택된 페이지만 추출
-    page_mapping = {}  # 새 PDF에서의 페이지 -> 원본 페이지 번호
-    for idx, p in enumerate(sorted(selected_pages)):
-        if 1 <= p <= len(reader.pages):
-            writer.add_page(reader.pages[p - 1])
-            page_mapping[idx + 1] = p
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        writer.write(tmp)
-        tmp_path = tmp.name
-    
-    try:
-        uploaded_sel = genai.upload_file(tmp_path)
-    finally:
-        os.unlink(tmp_path)
-
-    # 페이지 매핑 정보를 프롬프트에 포함
-    mapping_info = "\n".join([f"- 현재 PDF의 {new}페이지 = 원본 PDF의 {orig}페이지" 
-                              for new, orig in page_mapping.items()])
-    
-    prompt = f"""
-    당신은 사용자의 질문에 답변하는 문서 분석 전문가입니다.
-    
-    ## 중요 정보
-    이 PDF는 원본에서 선택된 페이지만을 포함합니다.
-    페이지 번호 매핑:
-    {mapping_info}
-    
-    ## 사용자 질문
-    {user_prompt}
-    
-    ## 답변 지시사항
-    1. 제공된 PDF 내용만을 기반으로 답변하세요
-    2. 정보를 인용할 때는 원본 페이지 번호를 명시하세요
-       예: "원본 PDF의 10페이지에 따르면..."
-    3. 구조화된 형식으로 명확하게 답변하세요
-    4. 핵심 내용을 먼저 제시하고 상세 설명을 추가하세요
-    """
-    
-    model = genai.GenerativeModel("gemini-2.5-flash")
-    return call_gemini_with_retry(model, [uploaded_sel, prompt])

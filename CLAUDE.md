@@ -27,63 +27,62 @@ The project uses these key packages:
 - `google-generativeai` (0.7.2) - Google Gemini API
 - `pdf2image` - PDF to image conversion
 - `PyPDF2` - PDF manipulation
+- `pandas` - Data manipulation for tables
 - `python-dotenv` - Environment variables
 
 ## Architecture Overview
 
-This is a 3-step PDF analysis application that minimizes AI hallucination through human-in-the-loop design:
+This is a simplified PDF analysis application that finds relevant pages and presents results in a table format.
 
 ### Core Flow
-1. **Upload Step** (`components/upload_step.py`): PDF upload + user prompt input
-2. **Page Selection Step** (`components/page_selection_step.py`): AI finds relevant pages, user selects which ones to analyze
-3. **Final Analysis Step** (`components/final_analysis_step.py`): AI analyzes only selected pages
+1. **Upload PDF**: User uploads PDF file or uses example PDF
+2. **Enter Question**: User inputs their analysis query
+3. **AI Analysis**: Gemini analyzes PDF in 10-page batches
+4. **Table Results**: Display results as a table with page number, answer, and relevance
+5. **Export to Excel**: Users can copy results to Excel
 
 ### Key Components
 
 **Main Application**
-- `app.py`: Main entry point with step orchestration
+- `app.py`: Main entry point
 - `config.py`: Environment setup and Gemini API configuration
 
 **Services Layer**
-- `services/gemini_service.py`: Gemini API interactions, prompt engineering, response parsing
-- `services/pdf_service.py`: PDF processing, image conversion, page numbering overlay
+- `services/gemini_service.py`: Gemini API interactions, batch processing
+- `services/pdf_service.py`: PDF processing, page extraction
 
 **UI Components**
-- `components/upload_step.py`: Handles PDF upload, example PDF loading, and initial AI analysis
-- `components/page_selection_step.py`: Shows AI-found pages with previews for user selection
-- `components/final_analysis_step.py`: Generates final analysis from selected pages
-- `components/sidebar.py`: Application info and developer links
+- `components/upload_step.py`: Handles PDF upload, analysis, and results display
+- `components/sidebar.py`: Application info and instructions
 
 **State Management**
 - `utils/session_state.py`: Centralized session state initialization
-- Uses Streamlit session state for multi-step workflow persistence
+- Key states: `relevant_pages`, `page_info`, `user_prompt`, `original_pdf_bytes`, `pdf_images`
 
 ### Technical Details
 
 **PDF Processing Pipeline**:
-1. Annotate PDF with physical page numbers (overlay in top-left)
-2. Upload to Gemini API for analysis
-3. Convert to images for preview display
-4. Parse Gemini response for relevant pages
-5. Create subset PDF from selected pages for final analysis
+1. Annotate PDF with page numbers (top-left overlay)
+2. Convert to images for preview
+3. Split into 10-page batches for analysis
+4. Upload each batch to Gemini API
+5. Parse responses for relevant pages (중/상 relevance only)
+6. Display results in table format
 
 **Gemini Integration**:
-- Uses `gemini-2.0-flash` model
-- Complex prompt engineering for page-by-page analysis
-- Response parsing expects format: `page_number|page_response|relevance`
-- Handles both initial page finding and final analysis
+- Uses `gemini-2.0-flash-latest` model
+- Batch processing (10 pages per API call)
+- JSON response format for better parsing
+- Filters only 중(medium) and 상(high) relevance pages
 
-**State Management Keys**:
-- `relevant_pages`: List of AI-identified page numbers
-- `page_info`: Dict with page responses and relevance scores  
-- `selected_pages`: User-selected pages for final analysis
-- `user_prompt`: User's analysis question
-- `original_pdf_bytes`: Processed PDF with page numbers
-- `pdf_images`: PIL images for preview display
-- `step`: Current workflow step (1-3)
+**Results Display**:
+- Pandas DataFrame for table display
+- Page-by-page view buttons (opens in new tab)
+- TSV format for Excel copying
+- Clear instructions for data export
 
 ## Example PDF
-Includes example PDF (`Filereference/K-ICS 해설서.pdf`) for demonstration purposes - Korean insurance regulation document.
+Includes example PDF (`Filereference/K-ICS 해설서.pdf`) for demonstration purposes.
 
 ## Deployment
 Configured for Streamlit Community Cloud deployment with API key in secrets.

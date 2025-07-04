@@ -164,8 +164,7 @@ def display_analysis_results():
                 table_data.append({
                     '페이지': page_num,
                     '답변': info['page_response'],
-                    '관련도': info['relevance'],
-                    '상세보기': "📄 보기"
+                    '관련도': info['relevance']
                 })
     
     if table_data:
@@ -193,34 +192,34 @@ def display_analysis_results():
                     "관련도",
                     help="질문과의 관련성",
                     width="small"
-                ),
-                "상세보기": st.column_config.TextColumn(
-                    "상세보기",
-                    help="페이지 상세 내용 보기",
-                    width="small"
                 )
             }
         )
         
-        # 페이지별 상세보기 버튼
-        st.markdown("---")
-        st.subheader("📄 페이지 상세보기")
-        
-        cols = st.columns(min(4, len(table_data)))
-        for idx, row in enumerate(table_data):
-            page_num = row['페이지']
-            with cols[idx % 4]:
-                if st.button(f"페이지 {page_num} 보기", key=f"view_page_{page_num}"):
-                    single_page_pdf = extract_single_page_pdf(
-                        st.session_state.original_pdf_bytes, 
-                        page_num
-                    )
-                    if single_page_pdf:
-                        # Base64 인코딩
-                        b64 = base64.b64encode(single_page_pdf).decode()
-                        # JavaScript로 새 탭 열기
-                        href = f'<a href="data:application/pdf;base64,{b64}" target="_blank">페이지 {page_num} 새 탭에서 열기</a>'
-                        st.markdown(href, unsafe_allow_html=True)
+        # 간단한 페이지 보기 버튼들
+        if table_data:
+            st.markdown("---")
+            st.write("**📄 페이지 상세 보기:**")
+            
+            # 페이지 버튼들을 한 줄에 배치
+            cols = st.columns(len(table_data))
+            for idx, row in enumerate(table_data):
+                page_num = row['페이지']
+                with cols[idx]:
+                    if st.button(f"📄 {page_num}페이지", key=f"view_{page_num}"):
+                        single_page_pdf = extract_single_page_pdf(
+                            st.session_state.original_pdf_bytes, 
+                            page_num
+                        )
+                        if single_page_pdf:
+                            # Base64 인코딩하여 다운로드 링크 생성
+                            b64 = base64.b64encode(single_page_pdf).decode()
+                            href = f'<a href="data:application/pdf;base64,{b64}" download="page_{page_num}.pdf">📥 페이지 {page_num} 다운로드</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                            
+                            # 브라우저에서 바로 보기 링크도 제공
+                            view_href = f'<a href="data:application/pdf;base64,{b64}" target="_blank">🔍 페이지 {page_num} 새 탭에서 보기</a>'
+                            st.markdown(view_href, unsafe_allow_html=True)
     
     else:
         st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")

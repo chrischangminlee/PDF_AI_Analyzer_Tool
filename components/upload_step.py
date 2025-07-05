@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import base64
 from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images, extract_single_page_pdf
 from services.gemini_service import find_relevant_pages_with_gemini
 
@@ -161,51 +160,63 @@ def display_analysis_results():
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
             if info['relevance'] in ['상', '중']:  # 관련도 중~상만 표시
-                # 페이지 상세보기 링크 생성
-                single_page_pdf = extract_single_page_pdf(
-                    st.session_state.original_pdf_bytes, 
-                    page_num
-                )
-                if single_page_pdf:
-                    b64 = base64.b64encode(single_page_pdf).decode()
-                    detail_link = f'<a href="data:application/pdf;base64,{b64}" target="_blank">📄 보기</a>'
-                else:
-                    detail_link = "❌"
-                
                 table_data.append({
                     '페이지': page_num,
                     '답변': info['page_response'],
                     '관련도': info['relevance'],
-                    '상세보기': detail_link
                 })
     
     if table_data:
-        # 테이블을 HTML로 표시하여 링크가 작동하도록 함
+        # DataFrame 생성
+        df = pd.DataFrame(table_data)
+        
+        # 테이블 표시
         st.markdown("### 📊 분석 결과 테이블")
         
-        # HTML 테이블 생성
-        html_table = "<table style='width:100%; border-collapse: collapse;'>"
-        html_table += "<tr style='background-color: #f0f0f0;'>"
-        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>페이지</th>"
-        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: left;'>답변</th>"
-        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>관련도</th>"
-        html_table += "<th style='border: 1px solid #ddd; padding: 8px; text-align: center;'>상세보기</th>"
-        html_table += "</tr>"
+        # 각 행에 대해 상세보기 버튼 추가
+        for _, row in df.iterrows():
+            col1, col2, col3, col4 = st.columns([1, 6, 1, 1])
+            
+            with col1:
+                st.write(row['페이지'])
+            
+            with col2:
+                st.write(row['답변'])
+            
+            with col3:
+                st.write(row['관련도'])
+            
+            with col4:
+                if st.button("📄 보기", key=f"view_page_{row['페이지']}"):
+                    # 해당 페이지의 PDF 추출
+                    single_page_pdf = extract_single_page_pdf(
+                        st.session_state.original_pdf_bytes, 
+                        row['페이지']
+                    )
+                    if single_page_pdf:
+                        # PDF를 다운로드 가능한 형태로 제공
+                        st.download_button(
+                            label="📥 다운로드",
+                            data=single_page_pdf,
+                            file_name=f"page_{row['페이지']}.pdf",
+                            mime="application/pdf",
+                            key=f"download_page_{row['페이지']}"
+                        )
         
-        for row in table_data:
-            html_table += "<tr>"
-            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['페이지']}</td>"
-            html_table += f"<td style='border: 1px solid #ddd; padding: 8px;'>{row['답변']}</td>"
-            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['관련도']}</td>"
-            html_table += f"<td style='border: 1px solid #ddd; padding: 8px; text-align: center;'>{row['상세보기']}</td>"
-            html_table += "</tr>"
+        st.divider()
         
-        html_table += "</table>"
-        
-        st.markdown(html_table, unsafe_allow_html=True)
+        # CSV 다운로드 버튼 추가
+        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+        st.download_button(
+            label="📥 결과 CSV 형태로 다운받기",
+            data=csv_data,
+            file_name=f"분석결과_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            type="primary"
+        )
         
         # 사용 팁
-        st.info("💡 **팁:** 상세보기 컬럼의 '📄 보기' 링크를 클릭하면 해당 페이지를 새 탭에서 볼 수 있습니다.")
+        st.info("💡 **팁:** '보기' 버튼을 클릭하면 해당 페이지의 PDF를 다운로드할 수 있습니다.")
     
     else:
         st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")

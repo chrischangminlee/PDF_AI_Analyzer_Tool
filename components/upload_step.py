@@ -217,6 +217,21 @@ def display_analysis_results():
         
         st.markdown("---")
         
+        # CSV 다운로드 버튼 추가
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False, encoding='utf-8')
+        csv_data = csv_buffer.getvalue().encode('utf-8-sig')
+        
+        st.download_button(
+            label="📥 결과 CSV 형태로 다운받기",
+            data=csv_data,
+            file_name=f"분석결과_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv;charset=utf-8-sig",
+            type="primary"
+        )
+
+        st.markdown("---")
+        
         # 미리보기 표시
         if hasattr(st.session_state, 'preview_page') and st.session_state.preview_page:
             st.markdown("---")
@@ -249,20 +264,7 @@ def display_analysis_results():
                         use_column_width=True
                     )
             
-            st.markdown("---")
         
-        # CSV 다운로드 버튼 추가
-        csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False, encoding='utf-8')
-        csv_data = csv_buffer.getvalue().encode('utf-8-sig')
-        
-        st.download_button(
-            label="📥 결과 CSV 형태로 다운받기",
-            data=csv_data,
-            file_name=f"분석결과_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv;charset=utf-8-sig",
-            type="primary"
-        )
         
         # 사용 팁
         st.info("💡 **팁:** '👁️ 보기' 버튼을 클릭하면 해당 페이지를 미리볼 수 있습니다.")

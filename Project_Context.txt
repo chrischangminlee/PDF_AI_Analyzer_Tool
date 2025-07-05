@@ -60,19 +60,21 @@ pdf-analyzer/
 
 ## 📁 /components/upload_step.py
 - Line 1~5: Import 문
-  - pandas, base64, PDF/Gemini 서비스 import
-- Line 7~153: run_upload_step()
+  - pandas, io, PDF/Gemini 서비스 import
+- Line 7~150: run_upload_step()
   - PDF 업로드 폼 표시
   - 예시 PDF 로드/제거 기능
   - 3단계 분석 실행 및 진행 상태 표시
   - 분석 완료 후 display_analysis_results() 호출
-- Line 11~17: load_example_pdf() (내부 함수)
+- Line 11~19: load_example_pdf() (내부 함수)
   - 예시 PDF 파일 로드
-- Line 155~250: display_analysis_results()
-  - 분석 결과를 4컬럼 pandas DataFrame으로 테이블 표시
-  - 컬럼: 페이지, 답변(사용자 질문 대한), 관련도, 상세보기
-  - 페이지별 상세보기 버튼 (새 탭에서 PDF 보기)
-  - 엑셀 복사 기능 제거됨
+- Line 153~282: display_analysis_results()
+  - 엑셀 스타일의 깔끔한 테이블 표시 (Streamlit columns 사용)
+  - 4컬럼: 페이지, 답변(사용자 질문 대한), 관련도, 상세보기
+  - 관련도 '중' 빈 답변 시 "관련 내용이 포함된 페이지" 표시
+  - 상세보기 컬럼에 "🔍 미리보기" 버튼
+  - 버튼 클릭 시 모달 팝업으로 페이지 이미지 표시
+  - CSV 다운로드 기능 (UTF-8 BOM 인코딩으로 한글 깨짐 방지)
   - 새로운 분석 시작 버튼
 
 ---
@@ -94,24 +96,27 @@ pdf-analyzer/
 ## 📁 /services/gemini_service.py
 - Line 1~9: Import 문 및 모델 상수
   - GEMINI_MODEL = "gemini-2.5-flash"
-- Line 11~57: call_gemini_with_retry(model, content, max_retries, base_delay, status_placeholder)
+- Line 11~47: call_gemini_with_retry(model, content, max_retries, base_delay, status_placeholder)
   - Gemini API 호출 with 재시도 로직
   - 429 에러(할당량 초과) 시 지수 백오프
   - status_placeholder로 상태 메시지 단일화
-- Line 59~86: parse_page_info(gemini_response)
-  - JSON 형식 응답 파싱
+- Line 49~99: parse_page_info(gemini_response)
+  - JSON 형식 응답 파싱 (개선된 디버깅 기능)
   - 페이지 번호, 사용자 질문 답변, 관련도 추출
   - 'answer' 필드로 변경 (기존 'summary'에서)
-- Line 88~105: parse_page_info_legacy(gemini_response)
+  - 빈 응답이나 파싱 오류 시 상세 로그 표시
+- Line 101~105: parse_page_info_legacy(gemini_response)
   - 파이프(|) 구분 형식 파싱 (폴백용)
-- Line 107~131: split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
+- Line 107~133: split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
   - PDF를 10페이지씩 배치로 분할
   - 임시 파일로 각 배치 저장
-- Line 133~203: analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder)
+- Line 135~194: analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder)
   - 단일 배치 PDF를 Gemini로 분석
-  - 사용자 질문에 대한 구체적 답변 생성 프롬프트
-  - 관련도 상/중인 페이지만 추출
-- Line 205~265: find_relevant_pages_with_gemini(user_prompt, pdf_bytes, status_placeholder)
+  - 개선된 프롬프트: 직접 답변 vs 간접 관련 구분 명확화
+  - 관련도 '상': 직접적인 답변 문장 존재 (30자 이내 요약)
+  - 관련도 '중': 간접 관련 정보 (답변 필드는 빈 문자열)
+  - JSON 형식 이스케이프 수정 ({{ }})
+- Line 197~252: find_relevant_pages_with_gemini(user_prompt, pdf_bytes, status_placeholder)
   - 전체 PDF를 배치 단위로 순차 분석
   - 진행률 표시 및 배치별 상태 업데이트
   - API 할당량 소진 시 빈 결과 반환
@@ -141,15 +146,18 @@ pdf-analyzer/
    - parse_page_info() → 응답 파싱
 
 4. **결과 표시** (upload_step.py)
-   - display_analysis_results() → 4컬럼 테이블 UI (페이지/답변/관련도/상세보기)
-   - extract_single_page_pdf() → 개별 페이지 추출 및 새 탭 열기
+   - display_analysis_results() → 엑셀 스타일 4컬럼 테이블
+   - 모달 팝업으로 페이지 미리보기 (Streamlit @st.dialog)
+   - CSV 다운로드 (UTF-8 BOM 인코딩)
 
 ---
 
 ## 💡 핵심 기능 위치
-- **PDF 업로드 UI**: components/upload_step.py (Line 7~153)
-- **Gemini API 호출**: services/gemini_service.py (Line 133~203)
-- **4컬럼 결과 테이블**: components/upload_step.py (Line 155~250)
+- **PDF 업로드 UI**: components/upload_step.py (Line 7~150)
+- **Gemini API 호출**: services/gemini_service.py (Line 135~194)
+- **엑셀 스타일 테이블**: components/upload_step.py (Line 153~282)
+- **모달 팝업 미리보기**: components/upload_step.py (Line 220~252)
+- **CSV 다운로드 (한글 지원)**: components/upload_step.py (Line 254~257)
 - **페이지 번호 오버레이**: services/pdf_service.py (Line 18~38)
-- **배치 분석 로직**: services/gemini_service.py (Line 205~265)
-- **상태 메시지 단일화**: services/gemini_service.py (Line 11~57)
+- **배치 분석 로직**: services/gemini_service.py (Line 197~252)
+- **상태 메시지 단일화**: services/gemini_service.py (Line 11~47)

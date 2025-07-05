@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images, extract_single_page_pdf
+import io
+from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
 from services.gemini_service import find_relevant_pages_with_gemini
 
 def run_upload_step():
@@ -20,7 +21,7 @@ def run_upload_step():
     # 예시 PDF 불러오기 / 제거 버튼
     st.write("예시 PDF를 활용하거나, PDF를 불러오세요")
 
-    col1, col2 = st.columns(2)
+    col1, _ = st.columns(2)
     with col1:
         if st.session_state.get('example_pdf_loaded', False):
             if st.button("🗑️ 예시 PDF 제거", type="secondary"):
@@ -55,10 +56,10 @@ def run_upload_step():
         # PDF 파일 확인
         if st.session_state.get('example_pdf_loaded', False):
             pdf_bytes_to_process = st.session_state['example_pdf_bytes']
-            pdf_source = "예시 PDF (K-ICS 해설서.pdf)"
+            # pdf_source = "예시 PDF (K-ICS 해설서.pdf)"
         elif pdf_file:
             pdf_bytes_to_process = pdf_file.read()
-            pdf_source = pdf_file.name
+            # pdf_source = pdf_file.name
         else:
             st.error("PDF 파일을 선택하거나 예시 PDF를 로드해주세요.")
             st.stop()
@@ -173,50 +174,73 @@ def display_analysis_results():
         # 테이블 표시
         st.markdown("### 📊 분석 결과 테이블")
         
-        # 각 행에 대해 상세보기 버튼 추가
+        # 테이블 헤더
+        header_col1, header_col2, header_col3, header_col4 = st.columns([1, 6, 1, 1.5])
+        with header_col1:
+            st.markdown("**페이지**")
+        with header_col2:
+            st.markdown("**답변**")
+        with header_col3:
+            st.markdown("**관련도**")
+        with header_col4:
+            st.markdown("**상세보기**")
+        
+        st.markdown("---")
+        
+        # 각 행에 대해 데이터와 버튼 표시
         for _, row in df.iterrows():
-            col1, col2, col3, col4 = st.columns([1, 6, 1, 1])
+            col1, col2, col3, col4 = st.columns([1, 6, 1, 1.5])
             
             with col1:
-                st.write(row['페이지'])
+                st.markdown(f"**{row['페이지']}**")
             
             with col2:
-                st.write(row['답변'])
+                st.markdown(row['답변'])
             
             with col3:
-                st.write(row['관련도'])
+                if row['관련도'] == '상':
+                    st.markdown("🔴 **상**")
+                else:
+                    st.markdown("🟡 **중**")
             
             with col4:
-                if st.button("📄 보기", key=f"view_page_{row['페이지']}"):
-                    # 해당 페이지의 PDF 추출
-                    single_page_pdf = extract_single_page_pdf(
-                        st.session_state.original_pdf_bytes, 
-                        row['페이지']
-                    )
-                    if single_page_pdf:
-                        # PDF를 다운로드 가능한 형태로 제공
-                        st.download_button(
-                            label="📥 다운로드",
-                            data=single_page_pdf,
-                            file_name=f"page_{row['페이지']}.pdf",
-                            mime="application/pdf",
-                            key=f"download_page_{row['페이지']}"
-                        )
-        
-        st.divider()
+                # PDF 이미지가 있으면 표시
+                if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
+                    page_idx = row['페이지'] - 1
+                    if 0 <= page_idx < len(st.session_state.pdf_images):
+                        if st.button("👁️ 보기", key=f"view_{row['페이지']}"):
+                            st.session_state[f"show_page_{row['페이지']}"] = True
+                
+                # 페이지 이미지를 팝업으로 표시
+                if st.session_state.get(f"show_page_{row['페이지']}", False):
+                    with st.expander(f"📄 페이지 {row['페이지']} 미리보기", expanded=True):
+                        page_idx = row['페이지'] - 1
+                        if 0 <= page_idx < len(st.session_state.pdf_images):
+                            st.image(st.session_state.pdf_images[page_idx], 
+                                   caption=f"페이지 {row['페이지']}", 
+                                   use_column_width=True)
+                        if st.button("❌ 닫기", key=f"close_{row['페이지']}"):
+                            st.session_state[f"show_page_{row['페이지']}"] = False
+                            st.rerun()
+            
+            # 행 구분선
+            st.markdown("---")
         
         # CSV 다운로드 버튼 추가
-        csv_data = df.to_csv(index=False, encoding='utf-8-sig')
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False, encoding='utf-8')
+        csv_data = csv_buffer.getvalue().encode('utf-8-sig')
+        
         st.download_button(
             label="📥 결과 CSV 형태로 다운받기",
             data=csv_data,
             file_name=f"분석결과_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
+            mime="text/csv;charset=utf-8-sig",
             type="primary"
         )
         
         # 사용 팁
-        st.info("💡 **팁:** '보기' 버튼을 클릭하면 해당 페이지의 PDF를 다운로드할 수 있습니다.")
+        st.info("💡 **팁:** '👁️ 보기' 버튼을 클릭하면 해당 페이지를 미리볼 수 있습니다.")
     
     else:
         st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")

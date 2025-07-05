@@ -179,65 +179,72 @@ def display_analysis_results():
         # 테이블 표시
         st.markdown("### 📊 분석 결과 테이블")
         
-        # 실제 테이블 형태로 표시
-        display_df = df.copy()
-        display_df['관련도'] = display_df['관련도'].apply(lambda x: '🔴 상' if x == '상' else '🟡 중')
-        display_df['상세보기'] = display_df['페이지'].apply(lambda x: f'페이지 {x}')
+        # 테이블과 버튼을 함께 표시
+        col_headers = st.columns([1, 6, 1.5, 1.5])
+        with col_headers[0]:
+            st.markdown("**페이지**")
+        with col_headers[1]:
+            st.markdown("**답변**")
+        with col_headers[2]:
+            st.markdown("**관련도**")
+        with col_headers[3]:
+            st.markdown("**상세보기**")
         
-        # 테이블 표시 (인덱스 숨김)
-        st.dataframe(
-            display_df[['페이지', '답변', '관련도', '상세보기']], 
-            hide_index=True,
-            use_container_width=True,
-            height=min(len(display_df) * 50 + 50, 400)  # 최대 높이 제한
-        )
+        # 구분선
+        st.markdown("---")
         
-        st.divider()
+        # 각 행 표시
+        for _, row in df.iterrows():
+            cols = st.columns([1, 6, 1.5, 1.5])
+            
+            with cols[0]:
+                st.write(f"{row['페이지']}")
+            
+            with cols[1]:
+                st.write(row['답변'])
+            
+            with cols[2]:
+                if row['관련도'] == '상':
+                    st.write("🔴 상")
+                else:
+                    st.write("🟡 중")
+            
+            with cols[3]:
+                if st.button("페이지 보기", key=f"view_{row['페이지']}"):
+                    st.session_state.show_page = row['페이지']
         
-        # 페이지 상세보기 섹션
-        if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
-            with st.expander("📄 페이지 상세보기", expanded=False):
-                # 페이지 버튼들을 가로로 배치
-                st.write("페이지를 선택하세요:")
+        st.markdown("---")
+        
+        # 선택된 페이지 표시 (팝업 스타일)
+        if hasattr(st.session_state, 'show_page') and st.session_state.show_page:
+            page_to_show = st.session_state.show_page
+            
+            # 해당 페이지 정보 찾기
+            page_data = df[df['페이지'] == page_to_show].iloc[0]
+            
+            # 팝업 스타일 컨테이너
+            with st.container():
+                st.markdown("### 📄 페이지 미리보기")
                 
-                # 한 줄에 10개씩 버튼 배치
-                pages = df['페이지'].tolist()
-                cols_per_row = 10
+                col1, col2 = st.columns([10, 1])
+                with col1:
+                    st.write(f"**페이지 {page_to_show}** | 관련도: {page_data['관련도']} | 답변: {page_data['답변']}")
+                with col2:
+                    if st.button("❌ 닫기"):
+                        del st.session_state.show_page
+                        st.rerun()
                 
-                for i in range(0, len(pages), cols_per_row):
-                    cols = st.columns(min(cols_per_row, len(pages) - i))
-                    for j, col in enumerate(cols):
-                        if i + j < len(pages):
-                            page_num = pages[i + j]
-                            with col:
-                                if st.button(f"{page_num}", key=f"page_btn_{page_num}"):
-                                    st.session_state.selected_page = page_num
-                
-                # 선택된 페이지 이미지 표시
-                selected_page = st.session_state.get('selected_page', pages[0] if pages else None)
-                
-                if selected_page:
-                    page_idx = selected_page - 1
+                # 이미지 표시
+                if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
+                    page_idx = page_to_show - 1
                     if 0 <= page_idx < len(st.session_state.pdf_images):
-                        st.divider()
-                        
-                        # 페이지 정보 표시
-                        page_info = df[df['페이지'] == selected_page].iloc[0]
-                        col_info1, col_info2 = st.columns([1, 4])
-                        with col_info1:
-                            st.write(f"**페이지 {selected_page}**")
-                            st.write(f"관련도: {page_info['관련도']}")
-                        with col_info2:
-                            st.write(f"**답변:** {page_info['답변']}")
-                        
-                        st.divider()
-                        
-                        # 이미지 표시
                         st.image(
                             st.session_state.pdf_images[page_idx], 
-                            caption=f"페이지 {selected_page}", 
+                            caption=f"페이지 {page_to_show}", 
                             use_column_width=True
                         )
+                
+                st.markdown("---")
         
         # CSV 다운로드 버튼 추가
         csv_buffer = io.StringIO()

@@ -51,6 +51,11 @@ def parse_page_info(gemini_response):
     pages, page_info = [], {}
     
     try:
+        # 디버깅을 위한 로그
+        if not gemini_response or not gemini_response.strip():
+            st.warning("⚠️ Gemini 응답이 비어있습니다.")
+            return pages, page_info
+            
         if "```json" in gemini_response:
             json_str = gemini_response.split("```json")[1].split("```")[0].strip()
         elif "{" in gemini_response and "}" in gemini_response:
@@ -58,10 +63,16 @@ def parse_page_info(gemini_response):
             end = gemini_response.rfind("}") + 1
             json_str = gemini_response[start:end]
         else:
+            st.warning("⚠️ JSON 형식을 찾을 수 없어 기존 파싱 방식을 시도합니다.")
             return parse_page_info_legacy(gemini_response)
         
         data = json.loads(json_str)
         
+        # 페이지가 없는 경우 확인
+        if not data.get("pages"):
+            st.info("ℹ️ 관련 페이지를 찾을 수 없습니다.")
+            return pages, page_info
+            
         for item in data.get("pages", []):
             page_num = item.get("page_number")
             if page_num:
@@ -80,6 +91,9 @@ def parse_page_info(gemini_response):
                         continue
                 
     except (json.JSONDecodeError, KeyError) as e:
+        st.warning(f"⚠️ JSON 파싱 오류: {str(e)}")
+        st.text("Gemini 응답:")
+        st.code(gemini_response[:500] + "..." if len(gemini_response) > 500 else gemini_response)
         return parse_page_info_legacy(gemini_response)
     
     return pages, page_info
@@ -176,16 +190,15 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     관련성이 높은 페이지만 JSON으로 응답하세요:
 
     ```json
-    {
-    "pages": [
-        {
-        "page_number": [좌측 상단의 실제 페이지 번호],
-        "answer": "[사용자 질문에 대한 직접 답변 (30자 이내) 또는 빈 문자열]",
-        "relevance": "[상/중]"
-        }
-    ]
-    }
-
+    {{
+        "pages": [
+            {{
+                "page_number": [좌측 상단의 실제 페이지 번호],
+                "answer": "[사용자 질문에 대한 직접 답변 (30자 이내) 또는 빈 문자열]",
+                "relevance": "[상/중]"
+            }}
+        ]
+    }}
     ```
     
     ⚠️ 관련성이 낮은 페이지는 절대 포함하지 마세요!

@@ -217,39 +217,39 @@ def display_analysis_results():
         
         st.markdown("---")
         
-        # 미리보기 모달 표시
+        # 미리보기 표시
         if hasattr(st.session_state, 'preview_page') and st.session_state.preview_page:
-            @st.dialog(f"📄 페이지 {st.session_state.preview_page} 미리보기", width="large")
-            def show_preview():
-                page_num = st.session_state.preview_page
-                page_data = st.session_state.preview_data
-                
-                # 페이지 정보 표시
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**관련도:** {'🔴 상' if page_data['관련도'] == '상' else '🟡 중'}")
-                with col2:
-                    st.write(f"**답변:** {page_data['답변']}")
-                
-                st.divider()
-                
-                # 이미지 표시
-                if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
-                    page_idx = page_num - 1
-                    if 0 <= page_idx < len(st.session_state.pdf_images):
-                        st.image(
-                            st.session_state.pdf_images[page_idx], 
-                            caption=f"페이지 {page_num}", 
-                            use_column_width=True
-                        )
-                
-                # 닫기 버튼
-                if st.button("닫기", type="primary", use_container_width=True):
+            st.markdown("---")
+            
+            # 미리보기 섹션
+            st.markdown("### 📄 페이지 {} 미리보기".format(st.session_state.preview_page))
+            
+            page_num = st.session_state.preview_page
+            page_data = st.session_state.preview_data
+            
+            # 닫기 버튼과 정보를 한 줄에 표시
+            col1, col2, col3 = st.columns([4, 4, 1])
+            with col1:
+                st.write(f"**관련도:** {'🔴 상' if page_data['관련도'] == '상' else '🟡 중'}")
+            with col2:
+                st.write(f"**답변:** {page_data['답변']}")
+            with col3:
+                if st.button("❌ 닫기", key="close_preview"):
                     del st.session_state.preview_page
                     del st.session_state.preview_data
                     st.rerun()
             
-            show_preview()
+            # 이미지 표시
+            if hasattr(st.session_state, 'pdf_images') and st.session_state.pdf_images:
+                page_idx = page_num - 1
+                if 0 <= page_idx < len(st.session_state.pdf_images):
+                    st.image(
+                        st.session_state.pdf_images[page_idx], 
+                        caption=f"페이지 {page_num}", 
+                        use_column_width=True
+                    )
+            
+            st.markdown("---")
         
         # CSV 다운로드 버튼 추가
         csv_buffer = io.StringIO()

@@ -160,7 +160,7 @@ def display_analysis_results():
     for page_num in st.session_state.relevant_pages:
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
-            if info['relevance'] in ['상', '중']:  # 관련도 중~상만 표시
+            if info['relevance'] == '상':  # 관련도 상만 표시
                 # 답변이 비어있는 경우 처리
                 answer = info['page_response']
                 if not answer or answer.strip() == "":
@@ -180,14 +180,12 @@ def display_analysis_results():
         st.markdown("### 📊 분석 결과 테이블")
         
         # 테이블과 버튼을 함께 표시
-        col_headers = st.columns([1, 6, 1.5, 2])
+        col_headers = st.columns([1, 7, 2])
         with col_headers[0]:
             st.markdown("**페이지**")
         with col_headers[1]:
             st.markdown("**답변**")
         with col_headers[2]:
-            st.markdown("**관련도**")
-        with col_headers[3]:
             st.markdown("**상세보기**")
         
         # 구분선
@@ -195,7 +193,7 @@ def display_analysis_results():
         
         # 각 행 표시
         for _, row in df.iterrows():
-            cols = st.columns([1, 6, 1.5, 2])
+            cols = st.columns([1, 7, 2])
             
             with cols[0]:
                 st.write(f"{row['페이지']}")
@@ -204,12 +202,6 @@ def display_analysis_results():
                 st.write(row['답변'])
             
             with cols[2]:
-                if row['관련도'] == '상':
-                    st.write("🔴 상")
-                else:
-                    st.write("🟡 중")
-            
-            with cols[3]:
                 # 미리보기 버튼
                 if st.button("🔍 미리보기", key=f"preview_{row['페이지']}"):
                     st.session_state.preview_page = row['페이지']
@@ -219,7 +211,9 @@ def display_analysis_results():
         
         # CSV 다운로드 버튼 추가
         csv_buffer = io.StringIO()
-        df.to_csv(csv_buffer, index=False, encoding='utf-8')
+        # 관련도 컬럼 제외하고 CSV 생성
+        df_csv = df[['페이지', '답변']]
+        df_csv.to_csv(csv_buffer, index=False, encoding='utf-8')
         csv_data = csv_buffer.getvalue().encode('utf-8-sig')
         
         st.download_button(
@@ -270,7 +264,7 @@ def display_analysis_results():
         st.info("💡 **팁:** '👁️ 보기' 버튼을 클릭하면 해당 페이지를 미리볼 수 있습니다.")
     
     else:
-        st.warning("⚠️ 관련도가 '중' 이상인 페이지가 없습니다.")
+        st.warning("⚠️ 직접적인 답변이 포함된 페이지가 없습니다. (관련도 '상' 페이지가 없음)")
     
     # 새로운 분석 시작 버튼
     if st.button("🔄 새로운 분석 시작", type="primary"):

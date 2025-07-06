@@ -11,7 +11,7 @@ def run_upload_step():
     def load_example_pdf():
         """예시 PDF 파일을 로드하여 세션 상태에 저장"""
         try:
-            example_pdf_path = "Filereference/K-ICS 해설서.pdf"
+            example_pdf_path = "Filereference/changminlee_intro.pdf"
             with open(example_pdf_path, "rb") as f:
                 return f.read()
         except Exception as e:
@@ -56,7 +56,7 @@ def run_upload_step():
         # PDF 파일 확인
         if st.session_state.get('example_pdf_loaded', False):
             pdf_bytes_to_process = st.session_state['example_pdf_bytes']
-            # pdf_source = "예시 PDF (K-ICS 해설서.pdf)"
+            # pdf_source = "예시 PDF (changminlee_intro.pdf)"
         elif pdf_file:
             pdf_bytes_to_process = pdf_file.read()
             # pdf_source = pdf_file.name

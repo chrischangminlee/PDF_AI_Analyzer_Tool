@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
-from services.gemini_service import find_relevant_pages_with_gemini, validate_answers_with_prompt, generate_final_summary
+from services.gemini_service import find_relevant_pages_with_gemini, generate_final_summary
 
 def run_upload_step():
     st.header("PDF 업로드 및 질문 입력")
@@ -165,11 +165,21 @@ def display_analysis_results():
         st.info(st.session_state.final_summary)
         st.divider()
     
+    # 디버깅: 세션 상태 확인
+    st.write(f"**디버그: relevant_pages:** {getattr(st.session_state, 'relevant_pages', 'None')}")
+    st.write(f"**디버그: page_info 키들:** {list(getattr(st.session_state, 'page_info', {}).keys())}")
+    
+    if hasattr(st.session_state, 'page_info'):
+        st.write("**디버그: 모든 페이지 정보:**")
+        for page_num, info in st.session_state.page_info.items():
+            st.write(f"- 페이지 {page_num}: 관련도={info['relevance']}, 답변='{info['page_response']}'")
+    
     # 결과 데이터 준비
     table_data = []
     for page_num in st.session_state.relevant_pages:
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
+            st.write(f"**디버그: 페이지 {page_num} 처리 중 - 관련도: {info['relevance']}**")
             if info['relevance'] == '상':  # 관련도 상만 표시
                 # 답변이 비어있는 경우 처리
                 answer = info['page_response']
@@ -181,6 +191,9 @@ def display_analysis_results():
                     '답변': answer,
                     '관련도': info['relevance'],
                 })
+                st.write(f"**디버그: 페이지 {page_num} 테이블에 추가됨**")
+            else:
+                st.write(f"**디버그: 페이지 {page_num} 제외됨 (관련도: {info['relevance']})**")
     
     # 디버깅: 초기 결과 확인
     st.write(f"**디버그: 초기 발견된 페이지 수:** {len(table_data)}")

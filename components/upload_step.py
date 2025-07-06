@@ -42,13 +42,13 @@ def run_upload_step():
         col3, col4 = st.columns(2)
         with col3:
             if st.session_state.get('example_pdf_loaded', False):
-                st.info("📄 **예시 PDF (K-ICS 해설서.pdf)** 가 선택되었습니다.")
+                st.info("📄 **예시 PDF (changminlee_intro.pdf)** 가 선택되었습니다.")
                 pdf_file = None
             else:
                 pdf_file = st.file_uploader("PDF 파일을 선택하세요", type=['pdf'])
 
         with col4:
-            user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예: 요구자본의 정의 알려줘")
+            user_prompt_input = st.text_input("분석 요청사항 입력", placeholder="예:이창민의 경력")
 
         submitted = st.form_submit_button("PDF 분석 시작", type="primary")
 

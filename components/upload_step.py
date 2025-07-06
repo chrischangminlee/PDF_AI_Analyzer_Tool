@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
-from services.gemini_service import find_relevant_pages_with_gemini, generate_final_summary
+from services.gemini_service import find_relevant_pages_with_gemini, generate_final_summary, validate_answers_with_prompt
 
 def run_upload_step():
     st.header("PDF 업로드 및 질문 입력")
@@ -161,26 +161,38 @@ def display_analysis_results():
     
     # 최종 요약은 아래에서 테이블 생성 후 표시
     
-    # 결과 데이터 준비
+    # 결과 데이터 준비 - 상과 중 모두 포함
     table_data = []
     for page_num in st.session_state.relevant_pages:
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
-            if info['relevance'] == '상':  # 관련도 상만 표시
-                # 답변이 비어있는 경우 처리
-                answer = info['page_response']
-                if not answer or answer.strip() == "":
-                    answer = "관련 내용이 포함된 페이지"
-                
-                table_data.append({
-                    '페이지': page_num,
-                    '답변': answer,
-                    '관련도': info['relevance'],
-                })
+            # 답변이 비어있는 경우 처리
+            answer = info['page_response']
+            if not answer or answer.strip() == "":
+                answer = "관련 내용이 포함된 페이지"
+            
+            table_data.append({
+                '페이지': page_num,
+                '답변': answer,
+                '관련도': info['relevance'],
+            })
     
     if table_data:
-        # 최종 요약 생성
+        # 2단계: 답변 검증 (refined_prompt에 실제로 답변하는지 확인)
         if hasattr(st.session_state, 'refined_prompt'):
+            validation_placeholder = st.empty()
+            validated_data = validate_answers_with_prompt(
+                table_data,
+                st.session_state.refined_prompt,
+                validation_placeholder
+            )
+            validation_placeholder.empty()
+            
+            # 검증된 데이터로 업데이트
+            table_data = validated_data
+        
+        # 3단계: 최종 요약 생성 (검증된 답변들로만)
+        if table_data and hasattr(st.session_state, 'refined_prompt'):
             summary_placeholder = st.empty()
             final_summary = generate_final_summary(
                 table_data,

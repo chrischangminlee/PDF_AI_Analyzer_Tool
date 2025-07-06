@@ -159,11 +159,7 @@ def display_analysis_results():
     if hasattr(st.session_state, 'refined_prompt') and st.session_state.refined_prompt != st.session_state.user_prompt:
         st.write(f"**분석에 사용된 질문:** {st.session_state.refined_prompt}")
     
-    # 최종 요약 표시
-    if hasattr(st.session_state, 'final_summary') and st.session_state.final_summary:
-        st.markdown("### 📋 최종 답변")
-        st.info(st.session_state.final_summary)
-        st.divider()
+    # 최종 요약은 아래에서 테이블 생성 후 표시
     
     # 결과 데이터 준비
     table_data = []
@@ -193,6 +189,12 @@ def display_analysis_results():
             )
             summary_placeholder.empty()
             st.session_state.final_summary = final_summary
+            
+        # 최종 요약 표시
+        if hasattr(st.session_state, 'final_summary') and st.session_state.final_summary:
+            st.markdown("### 📋 최종 답변")
+            st.info(st.session_state.final_summary)
+            st.divider()
     
     if table_data:
         # DataFrame 생성

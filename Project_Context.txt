@@ -9,7 +9,7 @@ LLM이 요청을 수행하는데 필요한 특정 코드 위치를 정확히 식
 
 ## 🏗️ 프로젝트 구조
 ```
-pdf-analyzer/
+PDF_Analysis_UX_Enhanced_PJT/
 ├── app.py                    # 메인 애플리케이션 진입점
 ├── config.py                 # 환경 설정 및 API 키 관리
 ├── requirements.txt          # Python 패키지 의존성
@@ -20,115 +20,128 @@ pdf-analyzer/
 ├── services/               # 비즈니스 로직 서비스
 │   ├── pdf_service.py      # PDF 처리 관련 기능
 │   └── gemini_service.py   # Google Gemini API 연동
-└── utils/                  # 유틸리티 함수
-    └── session_state.py    # Streamlit 세션 상태 관리
+├── utils/                  # 유틸리티 함수
+│   └── session_state.py    # Streamlit 세션 상태 관리
+├── Filereference/          # 예시 PDF 파일
+│   ├── changminlee_intro.pdf
+│   └── K-ICS 해설서.pdf
+├── Project_Context.txt     # 이 문서
+├── README.md              # 프로젝트 소개
+└── CLAUDE.md              # Claude Code 가이드
 ```
 
 ---
 
 ## 📁 /app.py
-- Line 1~7: Import 문
-  - 필요한 모듈 및 컴포넌트 import
-- Line 9~10: 세션 초기화
+- Line 1-7: Import 문
+  - streamlit, components, utils 모듈 import
+- Line 9-10: 페이지 설정 및 세션 초기화
   - init_session_state() 호출
-- Line 12~13: 사이드바 렌더링
+- Line 12-13: 사이드바 렌더링
   - render_sidebar() 호출
-- Line 15~21: 메인 UI
+- Line 15-20: 메인 UI
   - 앱 타이틀 및 설명 표시
-- Line 23: PDF 업로드 및 분석 실행
+- Line 22: PDF 업로드 및 분석 실행
   - run_upload_step() 호출
 
 ---
 
 ## 📁 /config.py
-- Line 1~6: Import 및 페이지 설정
+- Line 1-6: Import 및 페이지 설정
   - Streamlit 페이지 config 설정
-- Line 8~11: get_api_key()
+- Line 8-11: get_api_key()
   - Streamlit secrets 또는 .env에서 API 키 가져오기
-- Line 13~19: API 키 검증 및 Gemini 설정
+- Line 13-21: API 키 검증 및 Gemini 설정
   - API 키 존재 확인 및 genai.configure() 호출
 
 ---
 
 ## 📁 /components/sidebar.py
 - Line 1: Import 문
-- Line 3~30: render_sidebar()
+- Line 3-24: render_sidebar()
   - 앱 소개, 사용 방법, 주의사항 표시
-  - 관련 링크 제공
+  - GitHub, LinkedIn 링크 제공
 
 ---
 
 ## 📁 /components/upload_step.py
-- Line 1~5: Import 문
-  - pandas, io, PDF/Gemini 서비스 import
-- Line 7~150: run_upload_step()
+- Line 1-10: Import 문
+  - pandas, io, base64, PDF/Gemini 서비스 import
+- Line 12-170: run_upload_step()
   - PDF 업로드 폼 표시
   - 예시 PDF 로드/제거 기능
-  - 3단계 분석 실행 및 진행 상태 표시
+  - 프롬프트 개선 및 3단계 분석 실행
   - 분석 완료 후 display_analysis_results() 호출
-- Line 11~19: load_example_pdf() (내부 함수)
+- Line 16-24: load_example_pdf() (내부 함수)
   - 예시 PDF 파일 로드
-- Line 153~282: display_analysis_results()
-  - 엑셀 스타일의 깔끔한 테이블 표시 (Streamlit columns 사용)
-  - 4컬럼: 페이지, 답변(사용자 질문 대한), 관련도, 상세보기
-  - 관련도 '중' 빈 답변 시 "관련 내용이 포함된 페이지" 표시
+- Line 172-299: display_analysis_results()
+  - 개선된 프롬프트 표시
+  - 최종 요약 표시 (검증된 답변들의 통합)
+  - 엑셀 스타일 3컬럼 테이블 (페이지, 답변, 미리보기)
   - 상세보기 컬럼에 "🔍 미리보기" 버튼
-  - 버튼 클릭 시 모달 팝업으로 페이지 이미지 표시
-  - CSV 다운로드 기능 (UTF-8 BOM 인코딩으로 한글 깨짐 방지)
+  - 버튼 클릭 시 새 탭에서 페이지 이미지 표시
+  - CSV 다운로드 기능 (UTF-8 BOM 인코딩)
   - 새로운 분석 시작 버튼
 
 ---
 
 ## 📁 /services/pdf_service.py
-- Line 1~7: Import 문
-- Line 9~16: convert_pdf_to_images(pdf_bytes)
+- Line 1-7: Import 문
+- Line 9-15: convert_pdf_to_images(pdf_bytes)
   - PDF를 JPEG 이미지로 변환 (dpi=100)
   - pdf2image 라이브러리 사용
-- Line 18~38: annotate_pdf_with_page_numbers(pdf_bytes)
+- Line 17-37: annotate_pdf_with_page_numbers(pdf_bytes)
   - PDF 각 페이지 좌측 상단에 페이지 번호 오버레이
   - ReportLab으로 번호 생성, PyPDF2로 병합
-- Line 40~56: extract_single_page_pdf(pdf_bytes, page_num)
+- Line 39-55: extract_single_page_pdf(pdf_bytes, page_num)
   - 특정 페이지만 추출하여 별도 PDF 생성
   - 페이지 상세 보기 기능에 사용
 
 ---
 
 ## 📁 /services/gemini_service.py
-- Line 1~9: Import 문 및 모델 상수
-  - GEMINI_MODEL = "gemini-2.5-flash"
-- Line 11~47: call_gemini_with_retry(model, content, max_retries, base_delay, status_placeholder)
+- Line 1-11: Import 문 및 모델 설정
+  - GEMINI_MODEL = "gemini-2.0-flash-latest"
+- Line 13-51: call_gemini_with_retry(model, content, max_retries, base_delay, status_placeholder)
   - Gemini API 호출 with 재시도 로직
   - 429 에러(할당량 초과) 시 지수 백오프
   - status_placeholder로 상태 메시지 단일화
-- Line 49~99: parse_page_info(gemini_response)
-  - JSON 형식 응답 파싱 (개선된 디버깅 기능)
-  - 페이지 번호, 사용자 질문 답변, 관련도 추출
-  - 'answer' 필드로 변경 (기존 'summary'에서)
-  - 빈 응답이나 파싱 오류 시 상세 로그 표시
-- Line 101~105: parse_page_info_legacy(gemini_response)
+- Line 53-104: parse_page_info(gemini_response)
+  - JSON 형식 응답 파싱
+  - 페이지 번호, 답변, 관련도 추출
+  - 빈 응답이나 파싱 오류 시 상세 로그
+- Line 106-117: parse_page_info_legacy(gemini_response)
   - 파이프(|) 구분 형식 파싱 (폴백용)
-- Line 107~133: split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
+- Line 119-146: split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
   - PDF를 10페이지씩 배치로 분할
   - 임시 파일로 각 배치 저장
-- Line 135~194: analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder)
+- Line 148-208: analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder)
   - 단일 배치 PDF를 Gemini로 분석
-  - 개선된 프롬프트: 직접 답변 vs 간접 관련 구분 명확화
-  - 관련도 '상': 직접적인 답변 문장 존재 (30자 이내 요약)
-  - 관련도 '중': 간접 관련 정보 (답변 필드는 빈 문자열)
-  - JSON 형식 이스케이프 수정 ({{ }})
-- Line 197~252: find_relevant_pages_with_gemini(user_prompt, pdf_bytes, status_placeholder)
+  - 관련도 '상': 직접적인 답변 (30자 이내 요약)
+  - 관련도 '중': 간접 관련 정보 (답변 필드 빈 문자열)
+  - JSON 형식으로 응답 요청
+- Line 210-241: enhance_user_prompt(user_prompt, pdf_bytes, status_placeholder)
+  - 사용자 프롬프트를 AI로 개선
+  - 더 구체적이고 검색 친화적인 프롬프트 생성
+- Line 243-323: find_relevant_pages_with_gemini(user_prompt, pdf_bytes, status_placeholder)
   - 전체 PDF를 배치 단위로 순차 분석
-  - 진행률 표시 및 배치별 상태 업데이트
-  - API 할당량 소진 시 빈 결과 반환
+  - 프롬프트 개선 → 배치 분석 → 답변 검증 → 최종 요약
+  - 진행률 표시 및 상태 업데이트
   - 결과 병합 및 중복 제거
+- Line 325-374: validate_answers_with_prompt(refined_prompt, validated_results, pdf_bytes, status_placeholder)
+  - 찾은 답변들이 실제로 개선된 프롬프트에 답하는지 검증
+  - 관련 없는 답변 필터링
+- Line 376-434: generate_final_summary(refined_prompt, validated_answers, pdf_bytes, status_placeholder)
+  - 검증된 답변들을 바탕으로 종합적인 최종 요약 생성
+  - 구조화된 답변 제공
 
 ---
 
 ## 📁 /utils/session_state.py
 - Line 1: Import 문
-- Line 3~13: init_session_state()
+- Line 3-14: init_session_state()
   - Streamlit 세션 상태 변수 초기화
-  - relevant_pages, page_info, user_prompt 등 관리
+  - relevant_pages, page_info, user_prompt, refined_prompt, final_summary 등 관리
 
 ---
 
@@ -136,28 +149,40 @@ pdf-analyzer/
 1. **사용자 입력** (upload_step.py)
    - PDF 업로드 → user_prompt 입력 → 분석 시작
 
-2. **PDF 전처리** (pdf_service.py)
+2. **프롬프트 개선** (gemini_service.py)
+   - enhance_user_prompt() → AI가 더 나은 검색 프롬프트 생성
+
+3. **PDF 전처리** (pdf_service.py)
    - annotate_pdf_with_page_numbers() → 페이지 번호 추가
    - convert_pdf_to_images() → 이미지 변환
 
-3. **AI 분석** (gemini_service.py)
+4. **AI 분석** (gemini_service.py)
    - split_pdf_for_batch_analysis() → 10페이지 배치 분할
    - analyze_pdf_batch() → 각 배치 Gemini 분석
    - parse_page_info() → 응답 파싱
 
-4. **결과 표시** (upload_step.py)
-   - display_analysis_results() → 엑셀 스타일 4컬럼 테이블
-   - 모달 팝업으로 페이지 미리보기 (Streamlit @st.dialog)
+5. **답변 검증** (gemini_service.py)
+   - validate_answers_with_prompt() → 개선된 프롬프트와 답변 관련성 검증
+
+6. **최종 요약** (gemini_service.py)
+   - generate_final_summary() → 검증된 답변들로 종합 요약 생성
+
+7. **결과 표시** (upload_step.py)
+   - display_analysis_results() → 개선된 프롬프트, 최종 요약, 상세 테이블 표시
+   - 새 탭에서 페이지 미리보기
    - CSV 다운로드 (UTF-8 BOM 인코딩)
 
 ---
 
 ## 💡 핵심 기능 위치
-- **PDF 업로드 UI**: components/upload_step.py (Line 7~150)
-- **Gemini API 호출**: services/gemini_service.py (Line 135~194)
-- **엑셀 스타일 테이블**: components/upload_step.py (Line 153~282)
-- **모달 팝업 미리보기**: components/upload_step.py (Line 220~252)
-- **CSV 다운로드 (한글 지원)**: components/upload_step.py (Line 254~257)
-- **페이지 번호 오버레이**: services/pdf_service.py (Line 18~38)
-- **배치 분석 로직**: services/gemini_service.py (Line 197~252)
-- **상태 메시지 단일화**: services/gemini_service.py (Line 11~47)
+- **PDF 업로드 UI**: components/upload_step.py:12-170
+- **프롬프트 개선**: services/gemini_service.py:210-241
+- **Gemini API 호출**: services/gemini_service.py:148-208
+- **답변 검증**: services/gemini_service.py:325-374
+- **최종 요약 생성**: services/gemini_service.py:376-434
+- **엑셀 스타일 테이블**: components/upload_step.py:172-299
+- **페이지 미리보기**: components/upload_step.py:247-259
+- **CSV 다운로드**: components/upload_step.py:285-288
+- **페이지 번호 오버레이**: services/pdf_service.py:17-37
+- **배치 분석 로직**: services/gemini_service.py:243-323
+- **상태 메시지 관리**: services/gemini_service.py:13-51

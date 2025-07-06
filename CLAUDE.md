@@ -82,7 +82,7 @@ This is a simplified PDF analysis application that finds relevant pages and pres
 - Clear instructions for data export
 
 ## Example PDF
-Includes example PDF (`Filereference/K-ICS 해설서.pdf`) for demonstration purposes.
+Includes example PDF (`Filereference/changminlee_intro.pdf`) for demonstration purposes.
 
 ## Deployment
 Configured for Streamlit Community Cloud deployment with API key in secrets.

@@ -8,7 +8,7 @@ import google.generativeai as genai
 # 모델 상수
 GEMINI_MODEL = "gemini-2.5-flash"
 
-def call_gemini_with_retry(model, content, max_retries=3, base_delay=2, status_placeholder=None):
+def call_gemini_with_retry(model, content, max_retries=3, base_delay=1, status_placeholder=None):
     """Gemini API 호출을 재시도 로직과 함께 실행"""
     for attempt in range(max_retries):
         try:
@@ -146,7 +146,7 @@ def split_pdf_for_batch_analysis(pdf_bytes, batch_size=10):
     
     return batches
 
-def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=None):
+def analyze_pdf_batch(batch_path, refined_prompt, batch_info, status_placeholder=None):
     """단일 배치 PDF 분석"""
     # 배치 파일을 Gemini에 업로드
     batch_file = genai.upload_file(batch_path)
@@ -157,7 +157,7 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     중요: 각 페이지의 좌측 상단에 표시된 번호를 반드시 확인하고 사용하세요.
 
     ## 사용자 질문
-    {user_prompt}
+    {refined_prompt}
 
     ## 엄격한 관련성 판단 기준
     ⚠️ **매우 중요**: 다음 기준을 엄격히 적용하세요.
@@ -207,12 +207,52 @@ def analyze_pdf_batch(batch_path, user_prompt, batch_info, status_placeholder=No
     model = genai.GenerativeModel(GEMINI_MODEL)
     return call_gemini_with_retry(model, [batch_file, prompt], status_placeholder=status_placeholder)
 
+def enhance_user_prompt(user_prompt, status_placeholder=None):
+    """사용자의 초기 프롬프트를 더 명확하고 구체적으로 개선"""
+    try:
+        if status_placeholder:
+            status_placeholder.info("🔍 질문 분석 중...")
+        
+        prompt = f"""
+당신은 PDF 문서 분석을 위한 프롬프트 개선 전문가입니다.
+사용자의 질문을 분석하여, PDF에서 정확한 정보를 찾을 수 있도록 더 명확하고 구체적인 질문으로 개선해주세요.
+
+원본 질문: {user_prompt}
+
+다음 지침에 따라 질문을 개선하세요:
+1. 모호한 표현을 구체적으로 변경
+2. 관련 용어나 동의어 추가
+3. 찾고자 하는 정보의 유형 명확화 (정의, 절차, 조건, 금액 등)
+4. 불필요한 정중한 표현 제거 ("알려줘", "부탁해" 등)
+
+개선된 질문만 출력하세요. 추가 설명은 하지 마세요.
+"""
+        
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        enhanced_prompt = call_gemini_with_retry(model, prompt, max_retries=2, base_delay=1)
+        
+        if status_placeholder:
+            status_placeholder.success(f"✅ 질문 분석 완료: {enhanced_prompt}")
+        
+        return enhanced_prompt.strip()
+        
+    except Exception as e:
+        if status_placeholder:
+            status_placeholder.warning("⚠️ 질문 개선 실패, 원본 질문으로 진행합니다.")
+        return user_prompt
+
 def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placeholder=None):
     """배치 단위로 PDF 분석"""
     all_pages = []
     all_page_info = {}
     
     if pdf_bytes:
+        # 프롬프트 개선
+        refined_prompt = enhance_user_prompt(user_prompt, status_placeholder)
+        
+        # 개선된 프롬프트를 세션에 저장
+        st.session_state.refined_prompt = refined_prompt
+        
         # PDF를 배치로 나누어 분석
         batches = split_pdf_for_batch_analysis(pdf_bytes, batch_size=10)
         
@@ -221,18 +261,14 @@ def find_relevant_pages_with_gemini(user_prompt, pdf_bytes=None, status_placehol
             progress_bar.progress((idx + 1) / len(batches))
             
             try:
-                # 배치간 대기 시간 추가 (rate limiting) - 업로드 전에 실행
-                if idx > 0:
-                    if status_placeholder:
-                        status_placeholder.info(f"⏳ 배치 {idx + 1}/{len(batches)} 처리를 위해 3초 대기...")
-                    time.sleep(3)
+                # 배치간 대기 시간 제거 (Paid API 사용)
                 
                 # 현재 배치 진행상황 표시
                 if status_placeholder:
                     status_placeholder.info(f"🤖 배치 {idx + 1}/{len(batches)} 분석 중... (페이지 {batch['start_page']}-{batch['end_page']})")
                 
                 # 배치 분석 (내부에서 업로드 처리)
-                batch_response = analyze_pdf_batch(batch['path'], user_prompt, batch, status_placeholder)
+                batch_response = analyze_pdf_batch(batch['path'], refined_prompt, batch, status_placeholder)
                 
                 # 결과 파싱
                 pages, page_info = parse_page_info(batch_response)

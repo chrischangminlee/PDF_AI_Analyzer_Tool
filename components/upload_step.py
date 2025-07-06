@@ -153,7 +153,11 @@ def run_upload_step():
 def display_analysis_results():
     """분석 결과를 테이블 형태로 표시"""
     st.header("📊 분석 결과")
-    st.write(f"**질문:** {st.session_state.user_prompt}")
+    st.write(f"**원본 질문:** {st.session_state.user_prompt}")
+    
+    # 개선된 프롬프트가 있으면 표시
+    if hasattr(st.session_state, 'refined_prompt') and st.session_state.refined_prompt != st.session_state.user_prompt:
+        st.write(f"**분석에 사용된 질문:** {st.session_state.refined_prompt}")
     
     # 결과 데이터 준비
     table_data = []
@@ -186,7 +190,7 @@ def display_analysis_results():
         with col_headers[1]:
             st.markdown("**답변**")
         with col_headers[2]:
-            st.markdown("**상세보기**")
+            st.markdown("**상세보기 (하단에 표기됩니다)**")
         
         # 구분선
         st.markdown("---")
@@ -269,8 +273,8 @@ def display_analysis_results():
     # 새로운 분석 시작 버튼
     if st.button("🔄 새로운 분석 시작", type="primary"):
         # 세션 상태 초기화
-        for key in ['relevant_pages', 'page_info', 'user_prompt', 'original_pdf_bytes', 
-                    'pdf_images', 'example_pdf_loaded', 'example_pdf_bytes']:
+        for key in ['relevant_pages', 'page_info', 'user_prompt', 'refined_prompt', 
+                    'original_pdf_bytes', 'pdf_images', 'example_pdf_loaded', 'example_pdf_bytes']:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()

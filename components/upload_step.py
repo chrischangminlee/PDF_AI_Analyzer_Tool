@@ -165,21 +165,11 @@ def display_analysis_results():
         st.info(st.session_state.final_summary)
         st.divider()
     
-    # 디버깅: 세션 상태 확인
-    st.write(f"**디버그: relevant_pages:** {getattr(st.session_state, 'relevant_pages', 'None')}")
-    st.write(f"**디버그: page_info 키들:** {list(getattr(st.session_state, 'page_info', {}).keys())}")
-    
-    if hasattr(st.session_state, 'page_info'):
-        st.write("**디버그: 모든 페이지 정보:**")
-        for page_num, info in st.session_state.page_info.items():
-            st.write(f"- 페이지 {page_num}: 관련도={info['relevance']}, 답변='{info['page_response']}'")
-    
     # 결과 데이터 준비
     table_data = []
     for page_num in st.session_state.relevant_pages:
         if page_num in st.session_state.page_info:
             info = st.session_state.page_info[page_num]
-            st.write(f"**디버그: 페이지 {page_num} 처리 중 - 관련도: {info['relevance']}**")
             if info['relevance'] == '상':  # 관련도 상만 표시
                 # 답변이 비어있는 경우 처리
                 answer = info['page_response']
@@ -191,54 +181,18 @@ def display_analysis_results():
                     '답변': answer,
                     '관련도': info['relevance'],
                 })
-                st.write(f"**디버그: 페이지 {page_num} 테이블에 추가됨**")
-            else:
-                st.write(f"**디버그: 페이지 {page_num} 제외됨 (관련도: {info['relevance']})**")
-    
-    # 디버깅: 초기 결과 확인
-    st.write(f"**디버그: 초기 발견된 페이지 수:** {len(table_data)}")
-    if table_data:
-        st.write("**디버그: 초기 결과:**")
-        for item in table_data:
-            st.write(f"- 페이지 {item['페이지']}: {item['답변']}")
     
     if table_data:
-        # 답변 검증 단계 추가
+        # 최종 요약 생성
         if hasattr(st.session_state, 'refined_prompt'):
-            # 상태 표시용 placeholder
-            validation_placeholder = st.empty()
-            
-            # 원본 데이터 저장
-            original_count = len(table_data)
-            
-            # 답변 검증 실행 (임시 비활성화)
-            # table_data = validate_answers_with_prompt(
-            #     table_data, 
-            #     st.session_state.refined_prompt, 
-            #     validation_placeholder
-            # )
-            st.write("**임시: 답변 검증 단계 건너뜀**")
-            
-            # 검증 결과 로그
-            st.write(f"**디버그: 검증 후 남은 페이지 수:** {len(table_data)} (원본: {original_count})")
-            if table_data:
-                st.write("**디버그: 검증 후 결과:**")
-                for item in table_data:
-                    st.write(f"- 페이지 {item['페이지']}: {item['답변']}")
-            
-            # 검증 완료 후 placeholder 정리
-            validation_placeholder.empty()
-            
-            # 최종 요약 생성
-            if table_data and hasattr(st.session_state, 'refined_prompt'):
-                summary_placeholder = st.empty()
-                final_summary = generate_final_summary(
-                    table_data,
-                    st.session_state.refined_prompt,
-                    summary_placeholder
-                )
-                summary_placeholder.empty()
-                st.session_state.final_summary = final_summary
+            summary_placeholder = st.empty()
+            final_summary = generate_final_summary(
+                table_data,
+                st.session_state.refined_prompt,
+                summary_placeholder
+            )
+            summary_placeholder.empty()
+            st.session_state.final_summary = final_summary
     
     if table_data:
         # DataFrame 생성

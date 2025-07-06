@@ -98,6 +98,140 @@ def parse_page_info(gemini_response):
     
     return pages, page_info
 
+def validate_answers_with_prompt(table_data, refined_prompt, status_placeholder=None):
+    """분석 결과의 답변이 실제로 질문에 대답하는지 검증하고 필터링"""
+    if not table_data:
+        return table_data
+    
+    try:
+        if status_placeholder:
+            status_placeholder.info("🔍 답변 검증 중...")
+        
+        # 페이지 번호와 답변을 문자열로 구성
+        pages_info = []
+        for item in table_data:
+            pages_info.append(f"페이지 {item['페이지']}: {item['답변']}")
+        
+        pages_text = "\n".join(pages_info)
+        
+        prompt = f"""
+다음은 PDF 분석 결과입니다. 각 페이지의 답변이 사용자 질문에 실제로 대답하는지 검증해주세요.
+
+사용자 질문: {refined_prompt}
+
+분석 결과:
+{pages_text}
+
+검증 기준:
+1. 답변이 질문에 직접적으로 대답하는가?
+2. 답변이 질문과 관련된 구체적인 정보를 제공하는가?
+3. 답변이 의미있고 유용한가?
+
+각 페이지 번호에 대해 "유효" 또는 "무효" 중 하나로 판단하고, JSON 형식으로 응답하세요:
+
+```json
+{{
+    "valid_pages": [검증을 통과한 페이지 번호들의 배열]
+}}
+```
+
+예시:
+```json
+{{
+    "valid_pages": [1, 3, 5]
+}}
+```
+"""
+        
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        validation_response = call_gemini_with_retry(model, prompt, max_retries=2, base_delay=1)
+        
+        # JSON 파싱
+        try:
+            if "```json" in validation_response:
+                json_str = validation_response.split("```json")[1].split("```")[0].strip()
+            elif "{" in validation_response and "}" in validation_response:
+                start = validation_response.find("{")
+                end = validation_response.rfind("}") + 1
+                json_str = validation_response[start:end]
+            else:
+                # 파싱 실패 시 원본 반환
+                if status_placeholder:
+                    status_placeholder.warning("⚠️ 답변 검증 파싱 실패, 원본 결과를 사용합니다.")
+                return table_data
+            
+            validation_data = json.loads(json_str)
+            valid_pages = validation_data.get("valid_pages", [])
+            
+            # 유효한 페이지만 필터링
+            filtered_data = [item for item in table_data if item['페이지'] in valid_pages]
+            
+            if status_placeholder:
+                removed_count = len(table_data) - len(filtered_data)
+                if removed_count > 0:
+                    status_placeholder.success(f"✅ 답변 검증 완료: {removed_count}개 부정확한 결과 제거됨")
+                else:
+                    status_placeholder.success("✅ 답변 검증 완료: 모든 결과가 유효함")
+            
+            return filtered_data
+            
+        except (json.JSONDecodeError, KeyError) as e:
+            if status_placeholder:
+                status_placeholder.warning("⚠️ 답변 검증 결과 파싱 실패, 원본 결과를 사용합니다.")
+            return table_data
+        
+    except Exception as e:
+        if status_placeholder:
+            status_placeholder.warning("⚠️ 답변 검증 실패, 원본 결과를 사용합니다.")
+        return table_data
+
+def generate_final_summary(table_data, refined_prompt, status_placeholder=None):
+    """검증된 답변들을 종합하여 최종 요약 응답 생성"""
+    if not table_data:
+        return "관련된 정보를 찾을 수 없습니다."
+    
+    try:
+        if status_placeholder:
+            status_placeholder.info("📝 최종 요약 생성 중...")
+        
+        # 답변들을 문자열로 구성
+        answers_text = []
+        for item in table_data:
+            answers_text.append(f"페이지 {item['페이지']}: {item['답변']}")
+        
+        combined_answers = "\n".join(answers_text)
+        
+        prompt = f"""
+다음은 PDF 문서에서 찾은 관련 정보들입니다. 이 정보들을 종합하여 사용자의 질문에 대한 명확하고 완전한 답변을 작성해주세요.
+
+사용자 질문: {refined_prompt}
+
+찾은 정보:
+{combined_answers}
+
+다음 지침에 따라 최종 답변을 작성하세요:
+1. 모든 관련 정보를 종합하여 완전한 답변 제공
+2. 중복되는 내용은 통합하여 정리
+3. 명확하고 이해하기 쉬운 문장으로 작성
+4. 답변 길이는 100-200자 내외로 작성
+5. 페이지 번호는 언급하지 마세요 (정보만 종합)
+
+최종 답변만 출력하세요. 추가 설명이나 서두는 생략하세요.
+"""
+        
+        model = genai.GenerativeModel(GEMINI_MODEL)
+        summary_response = call_gemini_with_retry(model, prompt, max_retries=2, base_delay=1)
+        
+        if status_placeholder:
+            status_placeholder.success("✅ 최종 요약 생성 완료")
+        
+        return summary_response.strip()
+        
+    except Exception as e:
+        if status_placeholder:
+            status_placeholder.warning("⚠️ 최종 요약 생성 실패")
+        return "요약을 생성할 수 없습니다."
+
 def parse_page_info_legacy(gemini_response):
     """기존 파이프 형식 파싱 (폴백용)"""
     pages, page_info = [], {}

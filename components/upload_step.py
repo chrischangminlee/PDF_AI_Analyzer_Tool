@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 from services.pdf_service import annotate_pdf_with_page_numbers, convert_pdf_to_images
-from services.gemini_service import find_relevant_pages_with_gemini
+from services.gemini_service import find_relevant_pages_with_gemini, validate_answers_with_prompt, generate_final_summary
 
 def run_upload_step():
     st.header("PDF 업로드 및 질문 입력")
@@ -159,6 +159,12 @@ def display_analysis_results():
     if hasattr(st.session_state, 'refined_prompt') and st.session_state.refined_prompt != st.session_state.user_prompt:
         st.write(f"**분석에 사용된 질문:** {st.session_state.refined_prompt}")
     
+    # 최종 요약 표시
+    if hasattr(st.session_state, 'final_summary') and st.session_state.final_summary:
+        st.markdown("### 📋 최종 답변")
+        st.info(st.session_state.final_summary)
+        st.divider()
+    
     # 결과 데이터 준비
     table_data = []
     for page_num in st.session_state.relevant_pages:
@@ -175,6 +181,33 @@ def display_analysis_results():
                     '답변': answer,
                     '관련도': info['relevance'],
                 })
+    
+    if table_data:
+        # 답변 검증 단계 추가
+        if hasattr(st.session_state, 'refined_prompt'):
+            # 상태 표시용 placeholder
+            validation_placeholder = st.empty()
+            
+            # 답변 검증 실행
+            table_data = validate_answers_with_prompt(
+                table_data, 
+                st.session_state.refined_prompt, 
+                validation_placeholder
+            )
+            
+            # 검증 완료 후 placeholder 정리
+            validation_placeholder.empty()
+            
+            # 최종 요약 생성
+            if table_data and hasattr(st.session_state, 'refined_prompt'):
+                summary_placeholder = st.empty()
+                final_summary = generate_final_summary(
+                    table_data,
+                    st.session_state.refined_prompt,
+                    summary_placeholder
+                )
+                summary_placeholder.empty()
+                st.session_state.final_summary = final_summary
     
     if table_data:
         # DataFrame 생성
@@ -273,7 +306,7 @@ def display_analysis_results():
     # 새로운 분석 시작 버튼
     if st.button("🔄 새로운 분석 시작", type="primary"):
         # 세션 상태 초기화
-        for key in ['relevant_pages', 'page_info', 'user_prompt', 'refined_prompt', 
+        for key in ['relevant_pages', 'page_info', 'user_prompt', 'refined_prompt', 'final_summary',
                     'original_pdf_bytes', 'pdf_images', 'example_pdf_loaded', 'example_pdf_bytes']:
             if key in st.session_state:
                 del st.session_state[key]

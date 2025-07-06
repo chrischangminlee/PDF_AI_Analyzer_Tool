@@ -53,7 +53,6 @@ def parse_page_info(gemini_response):
     try:
         # 디버깅을 위한 로그
         if not gemini_response or not gemini_response.strip():
-            st.warning("⚠️ Gemini 응답이 비어있습니다.")
             return pages, page_info
             
         if "```json" in gemini_response:
@@ -63,14 +62,12 @@ def parse_page_info(gemini_response):
             end = gemini_response.rfind("}") + 1
             json_str = gemini_response[start:end]
         else:
-            st.warning("⚠️ JSON 형식을 찾을 수 없어 기존 파싱 방식을 시도합니다.")
             return parse_page_info_legacy(gemini_response)
         
         data = json.loads(json_str)
         
         # 페이지가 없는 경우 확인
         if not data.get("pages"):
-            st.info("ℹ️ 관련 페이지를 찾을 수 없습니다.")
             return pages, page_info
             
         for item in data.get("pages", []):
@@ -91,9 +88,6 @@ def parse_page_info(gemini_response):
                         continue
                 
     except (json.JSONDecodeError, KeyError) as e:
-        st.warning(f"⚠️ JSON 파싱 오류: {str(e)}")
-        st.text("Gemini 응답:")
-        st.code(gemini_response[:500] + "..." if len(gemini_response) > 500 else gemini_response)
         return parse_page_info_legacy(gemini_response)
     
     return pages, page_info

@@ -105,15 +105,6 @@ def run_upload_step():
             # 분석 완료 후 상태 메시지 정리
             status_placeholder.empty()
             
-            if not pages:
-                # 모든 진행 단계 블록 제거
-                step1_placeholder.empty()
-                step2_placeholder.empty()
-                step3_placeholder.empty()
-                
-                st.error("❌ AI 분석 결과가 비어있습니다. 다시 시도해주세요.")
-                return
-            
             # 결과를 세션에 저장
             st.session_state.relevant_pages = pages
             st.session_state.page_info = page_info
@@ -126,7 +117,11 @@ def run_upload_step():
             step3_placeholder.empty()
             
             # 분석 완료 표시
-            st.success(f"✅ **분석 완료!** AI가 {len(pages)}개의 관련 페이지를 찾았습니다!")
+            if not pages:
+                st.error("❌ 관련 페이지를 찾을 수 없습니다. 다시 시도해주세요.")
+                return
+            else:
+                st.success(f"✅ **분석 완료!** AI가 {len(pages)}개의 관련 페이지를 찾았습니다!")
             
             # 결과 표시
             display_analysis_results()

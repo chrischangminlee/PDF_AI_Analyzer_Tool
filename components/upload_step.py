@@ -30,7 +30,7 @@ def run_upload_step():
                     del st.session_state['example_pdf_bytes']
                 st.rerun()
         else:
-            if st.button("📄 예시 PDF (K-ICS 해설서) 불러오기", type="secondary"):
+            if st.button("📄 예시 PDF (개발자 이창민 Intro) 불러오기", type="secondary"):
                 example_pdf_bytes = load_example_pdf()
                 if example_pdf_bytes:
                     st.session_state['example_pdf_loaded'] = True

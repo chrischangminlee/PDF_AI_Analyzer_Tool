@@ -248,7 +248,7 @@ def display_analysis_results():
         csv_data = csv_buffer.getvalue().encode('utf-8-sig')
         
         st.download_button(
-            label="📥 결과 CSV 형태로 다운받기",
+            label="📥 페이지 별 결과 CSV 형태로 다운받기",
             data=csv_data,
             file_name=f"분석결과_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv",
             mime="text/csv;charset=utf-8-sig",

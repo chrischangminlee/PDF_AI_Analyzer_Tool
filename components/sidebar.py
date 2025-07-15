@@ -19,7 +19,7 @@ def render_sidebar():
     """)
     st.sidebar.markdown('<p style="color: red; font-size: 0.8em;">(주의)본 AI가 제공하는 답변은 참고용이며, 정확성을 보장할 수 없습니다. 보안을 위해 회사 기밀, 개인정보등은 제공하지 않기를 권장드리며, 반드시 실제 업무에 적용하기 전에 검토하시길 바랍니다.</p>', unsafe_allow_html=True)
     st.sidebar.markdown("### 타 Link")
-    st.sidebar.markdown("[기업 AI 인사이트 플랫폼](https://chrischangminlee.github.io/Enterprise-AI-Platform/ai-tools/)")
+    st.sidebar.markdown("[기업 AI 인사이트 플랫폼](https://chrischangminlee.github.io/Enterprise-AI-Platform/)")
     st.sidebar.markdown("[기업 AI 연구소 유튜브](https://www.youtube.com/@EnterpriseAILab)")
     st.sidebar.markdown("[기업 AI 정보 오픈카톡방](https://open.kakao.com/o/gbr6iuGh)")
     st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrislee9407/)")

@@ -23,5 +23,3 @@ def render_sidebar():
     st.sidebar.markdown("[기업 AI 연구소 유튜브](https://www.youtube.com/@EnterpriseAILab)")
     st.sidebar.markdown("[기업 AI 정보 오픈카톡방](https://open.kakao.com/o/gbr6iuGh)")
     st.sidebar.markdown("[개발자 링크드인](https://www.linkedin.com/in/chrislee9407/)")
-    st.sidebar.markdown("[K-계리 AI 플랫폼](https://chrischangminlee.github.io/K_Actuary_AI_Agent_Platform/)")
-    st.sidebar.markdown("[K-Actuary AI Doc Analyzer (Old Ver.)](https://kactuarypdf.streamlit.app/)")
